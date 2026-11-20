@@ -9,7 +9,7 @@ import {
 import { DuoFinSync } from './supabase-sync.js';
 import {
   buildCycles, currentCycle, cycleTransactions, computeCycleBalance,
-  computeCycleProjection, computeDailyBurnRate, getAllCreditCardsStats,
+  computeCycleProjection, computeDailyBurnRate, getAllCreditCardsStats, computeCreditCardDebt,
   goalTotal, getPeopleList, computeCycleReferenceMonth
 } from './finance-engine.js';
 import { SecurityManager } from './security.js';
@@ -442,8 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (file.name.toLowerCase().endsWith('.pdf')) {
         lines = await extractLinesFromPdf(file);
       } else {
-        lines = (await file.text()).split(/?
-/);
+        lines = (await file.text()).split(/\r?\n/);
       }
       parsedImportRows = parseStatementLines(state, lines);
       if (!parsedImportRows.length) throw new Error('Nenhum movimento reconhecido no ficheiro.');

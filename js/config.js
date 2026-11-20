@@ -1,4 +1,4 @@
-export const APP_VERSION = 'v2.0.0';
+export const APP_VERSION = 'v2.0.1';
 export const DAY_MS = 86400000;
 
 export const $ = id => document.getElementById(id);
