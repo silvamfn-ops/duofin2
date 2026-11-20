@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#142b45">
+  <meta name="description" content="DuoFin 2 — Gestão financeira a dois em tempo real, segura e multiplataforma.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="DuoFin 2">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <link rel="stylesheet" href="./css/styles.css">
+  <title>DuoFin 2 — Gestão financeira a dois</title>
+</head>
+<body>
+  <div id="appLockOverlay" class="app-lock-overlay" hidden>
+    <div class="app-lock-box">
+      <div class="brandmark" style="margin:0 auto 12px;width:46px;height:46px">DF2</div>
+      <h2>DuoFin 2 bloqueada</h2>
+      <p class="small">Introduz o PIN de segurança para aceder.</p>
+      <input type="password" id="appLockPinInput" inputmode="numeric" maxlength="6" placeholder="PIN (4 a 6 dígitos)" style="text-align:center;font-size:18px;letter-spacing:5px;margin:10px 0">
+      <div id="appLockError" class="small" style="color:var(--red);min-height:18px"></div>
+      <div class="actions" style="justify-content:center">
+        <button type="button" class="primary" id="appLockUnlockBtn">Desbloquear</button>
+        <button type="button" class="secondary" id="appLockBioBtn" hidden>👆 Biometria</button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="wrap header-inner">
+      <div>
+        <div class="brandline"><span class="brandmark">DF2</span><h1>DuoFin 2</h1></div>
+        <p>Sincronização em tempo real · 2 Telemóveis + 2 Computadores</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="version-badge" id="syncHeaderBadge">○ Local</span>
+        <button type="button" class="header-icon-btn" id="privacyToggleBtn" title="Modo privacidade">👁️</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <nav>
+      <button class="active" data-tab="resumo">🏠 Resumo</button>
+      <button data-tab="movimentos">💸 Movimentos</button>
+      <button data-tab="graficos">📊 Gráficos</button>
+      <button data-tab="objetivos">🎯 Objetivos</button>
+      <button data-tab="orcamento">⚖️ Orçamento & Cartões</button>
+      <button data-tab="dados">⚙️ Dados & Sync</button>
+    </nav>
+
+    <!-- RESUMO -->
+    <section id="resumo" class="view active">
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <div>
+          <b id="monthTitle">Ciclo financeiro</b>
+          <div id="cycleRange" class="small"></div>
+        </div>
+        <select id="cycleSelect" style="max-width:260px"></select>
+      </div>
+
+      <div class="stats" style="margin-top:12px">
+        <div class="stat stat-bal">
+          <span>Saldo do ciclo</span>
+          <b id="bal">0,00 €</b>
+          <div id="dailyBurnRateLine" class="small" style="margin-top:4px" hidden></div>
+          <div id="projectedBalLine" class="small" hidden></div>
+        </div>
+        <div class="stat stat-exp"><span>Despesas pagas</span><b id="exp" class="minus">0,00 €</b></div>
+        <div class="stat stat-sav"><span>Poupança líquida</span><b id="savm">0,00 €</b></div>
+        <div class="stat stat-inc"><span>Rendimentos</span><b id="inc" class="plus">0,00 €</b></div>
+      </div>
+
+      <div class="card">
+        <h2>💳 Cartões de crédito</h2>
+        <div id="creditCardsSummary"></div>
+      </div>
+
+      <div class="card">
+        <h2>Despesas por categoria</h2>
+        <div id="cats"></div>
+      </div>
+
+      <div class="card">
+        <h2>Evolução da poupança acumulada</h2>
+        <div class="chart-wrap"><canvas id="chart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h2>Movimentos recentes deste ciclo</h2>
+        <div id="recent"></div>
+      </div>
+    </section>
+
+    <!-- MOVIMENTOS -->
+    <section id="movimentos" class="view">
+      <div class="card">
+        <h2>Adicionar movimento</h2>
+        <form id="txForm">
+          <div class="grid">
+            <div><label for="date">Data</label><input id="date" type="date" required></div>
+            <div>
+              <label for="type">Tipo</label>
+              <select id="type">
+                <option value="expense">Despesa</option>
+                <option value="cc_payment">Pagamento de cartão de crédito</option>
+                <option value="income">Rendimento</option>
+                <option value="saving">Poupança transferida</option>
+                <option value="saving_withdraw">Resgate de poupança</option>
+              </select>
+            </div>
+          </div>
+          <label for="desc">Descrição</label>
+          <input id="desc" required placeholder="Ex.: Supermercado, Combustível, Vencimento...">
+          <div class="grid">
+            <div><label for="amount">Valor (€ — aceita somas ex.: 12,50 + 4,20)</label><input id="amount" type="text" inputmode="decimal" required></div>
+            <div id="categoryField"><label for="category">Categoria</label><select id="category"></select></div>
+          </div>
+          <div id="expensePaymentMethodField">
+            <label for="paymentMethod">Meio de pagamento</label>
+            <select id="paymentMethod"><option value="bank">Conta à ordem / Débito / Dinheiro</option></select>
+          </div>
+          <div id="ccPaymentField" hidden>
+            <label for="ccPaymentCard">Cartão de crédito liquidado (sem dupla contagem)</label>
+            <select id="ccPaymentCard"></select>
+          </div>
+          <div id="savingGoalField" hidden>
+            <label for="savingGoal">Associar a objetivo</label>
+            <select id="savingGoal"></select>
+          </div>
+          <div id="incomeCycleField" hidden>
+            <label class="checkbox-row"><input id="incomeCountsForCycle" type="checkbox" checked><span>Este rendimento inicia um novo ciclo financeiro</span></label>
+          </div>
+          <label for="person">Responsável</label>
+          <select id="person"></select>
+          <div class="actions"><button type="submit" class="primary">Guardar movimento</button></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Movimentos do ciclo</h2>
+        <div id="transactions"></div>
+      </div>
+    </section>
+
+    <!-- GRÁFICOS -->
+    <section id="graficos" class="view">
+      <div class="card">
+        <h2>Despesas por categoria (Ciclo selecionado)</h2>
+        <div class="analytics-canvas-box"><canvas id="analyticsCanvas"></canvas></div>
+      </div>
+    </section>
+
+    <!-- OBJETIVOS -->
+    <section id="objetivos" class="view">
+      <div class="card">
+        <h2>Novo objetivo de poupança</h2>
+        <form id="goalForm">
+          <label for="goalName">Nome do objetivo</label>
+          <input id="goalName" required placeholder="Ex.: Férias Açores, Fundo de emergência">
+          <div class="grid">
+            <div><label for="goalTarget">Valor alvo (€)</label><input id="goalTarget" type="number" step="0.01" min="1" required></div>
+            <div><label for="goalDeadline">Data limite (opcional)</label><input id="goalDeadline" type="date"></div>
+          </div>
+          <div class="actions"><button type="submit" class="primary">Criar objetivo</button></div>
+        </form>
+      </div>
+      <div id="goalList"></div>
+    </section>
+
+    <!-- ORÇAMENTO & CARTÕES -->
+    <section id="orcamento" class="view">
+      <div class="card">
+        <h2>Limites por categoria (€)</h2>
+        <div id="budgetFields"></div>
+        <div class="actions"><button type="button" class="primary" id="saveBudgetsBtn">Guardar limites</button></div>
+      </div>
+
+      <div class="card">
+        <h2>💳 Adicionar cartão de crédito</h2>
+        <form id="creditCardForm">
+          <div class="grid">
+            <div><label for="ccName">Nome do cartão</label><input id="ccName" required placeholder="Ex.: Cartão Universo"></div>
+            <div><label for="ccLimit">Plafond (€, opcional)</label><input id="ccLimit" type="number" step="0.01" min="0"></div>
+          </div>
+          <div class="grid">
+            <div><label for="ccInitialDebt">Dívida inicial (€)</label><input id="ccInitialDebt" type="number" step="0.01" min="0" value="0"></div>
+            <div><label for="ccOwner">Titular</label><select id="ccOwner"><option>Conta conjunta</option></select></div>
+          </div>
+          <div class="actions"><button type="submit" class="secondary">Guardar cartão</button></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Casal e Regras de Ciclo</h2>
+        <div class="grid">
+          <div><label for="adult1">Adulto 1</label><input id="adult1"></div>
+          <div><label for="adult2">Adulto 2</label><input id="adult2"></div>
+        </div>
+        <label for="cycleGroupingDays">Janela de agrupamento de vencimentos (dias)</label>
+        <input id="cycleGroupingDays" type="number" min="0" max="20" value="14">
+        <div class="actions"><button type="button" class="secondary" id="saveHouseholdBtn">Guardar definições</button></div>
+      </div>
+    </section>
+
+    <!-- DADOS & SYNC -->
+    <section id="dados" class="view">
+      <div class="card">
+        <h2>☁️ Sincronização em Tempo Real (Supabase)</h2>
+        <div id="cloudStatus" class="alert">Configura o URL e a Chave Pública do projeto Supabase.</div>
+        <label for="sbUrl">URL do Projeto Supabase</label>
+        <input id="sbUrl" type="url" placeholder="https://xxxxxxxx.supabase.co">
+        <label for="sbKey">Chave Pública (anon key)</label>
+        <input id="sbKey" type="password" placeholder="eyJhbGciOi...">
+        <div class="actions"><button type="button" class="secondary" id="saveCloudConfig">Guardar configuração</button></div>
+
+        <div class="grid" style="margin-top:8px">
+          <div><label for="cloudEmail">Email</label><input id="cloudEmail" type="email"></div>
+          <div><label for="cloudPassword">Palavra-passe</label><input id="cloudPassword" type="password"></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="primary" id="cloudLogin">Entrar</button>
+          <button type="button" class="secondary" id="cloudSignup">Criar conta</button>
+          <button type="button" class="danger" id="cloudLogout" hidden>Terminar sessão</button>
+        </div>
+
+        <div id="householdPanel" hidden style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+          <p id="householdInfo" class="small"></p>
+          <div class="grid">
+            <div><label for="householdName">Nome do orçamento</label><input id="householdName" value="Orçamento do Casal"></div>
+            <div style="display:flex;align-items:end"><button type="button" class="secondary" id="createHousehold">Criar novo orçamento</button></div>
+          </div>
+          <div class="grid">
+            <div><label for="inviteCode">Código de convite do parceiro(a)</label><input id="inviteCode" placeholder="Ex.: A1B2C3"></div>
+            <div style="display:flex;align-items:end;gap:8px">
+              <button type="button" class="secondary" id="joinHousehold">Usar convite</button>
+              <button type="button" class="secondary" id="createInvite">Gerar convite</button>
+            </div>
+          </div>
+          <div id="inviteResult" class="alert good" hidden></div>
+          <div class="actions"><button type="button" class="primary" id="syncNow">↻ Sincronizar agora</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📥 Migrar Histórico do DuoFin Antigo (v6.9.0)</h2>
+        <p class="small">Importa o ficheiro <code>duofin-backup.json</code> exportado da versão anterior para transferir todos os teus movimentos, cartões e objetivos para o DuoFin 2.</p>
+        <label class="secondary" style="display:inline-block;cursor:pointer">📂 Selecionar duofin-backup.json<input id="importLegacyBackup" type="file" accept=".json,application/json" hidden></label>
+      </div>
+
+      <div class="card">
+        <h2>📄 Importar Extrato Bancário (PDF / CSV)</h2>
+        <label class="secondary" style="display:inline-block;cursor:pointer">📄 Escolher PDF ou CSV<input id="csvFileInput" type="file" accept=".pdf,.csv,application/pdf,text/csv" hidden></label>
+        <div id="csvPreviewContainer" hidden style="margin-top:12px">
+          <div id="csvPreviewList"></div>
+          <div class="actions"><button type="button" class="primary" id="csvConfirmImportBtn">Importar selecionados</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🔒 Segurança Local (PIN)</h2>
+        <div class="grid">
+          <div><label for="newPinInput">PIN (4 a 6 dígitos)</label><input id="newPinInput" type="password" inputmode="numeric" maxlength="6"></div>
+          <div>
+            <label for="autoLockMinutes">Auto-bloqueio</label>
+            <select id="autoLockMinutes">
+              <option value="0">Manual</option>
+              <option value="1">1 minuto</option>
+              <option value="5" selected>5 minutos</option>
+              <option value="15">15 minutos</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions"><button type="button" class="primary" id="savePinBtn">Guardar PIN</button></div>
+      </div>
+    </section>
+
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
