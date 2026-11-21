@@ -1,4 +1,4 @@
-const CACHE_NAME = 'duofin2-core-v2.1.1';
+const CACHE_NAME = 'duofin2-core-v2.1.2';
 const STATIC_ASSETS = [
  './',
  './index.html',
