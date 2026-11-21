@@ -5,7 +5,7 @@ import {
 } from './config.js';
 import {
   loadLocalState, saveLocalState, enqueueOutbox,
-  convertLegacyV1Backup, getOutbox
+  convertLegacyV1Backup, getOutbox, createInitialState
 } from './db.js';
 import { DuoFinSync } from './supabase-sync.js';
 import {
@@ -103,6 +103,47 @@ function switchTab(tabId) {
   if (tabId === 'resumo') requestAnimationFrame(() => drawSavingsChart(state));
   if (tabId === 'graficos') updateAnalyticsView();
   if (tabId === 'calendario') renderCalendar();
+}
+
+let rolloverPromptOpen = false;
+
+function checkAutomaticCycleRollover() {
+  if (rolloverPromptOpen) return;
+  if ($('closeCycleModal') && !$('closeCycleModal').hidden) return;
+  if ($('appLockOverlay') && !$('appLockOverlay').hidden) return;
+
+  const cycles = buildCycles(state);
+  const closedCycles = cycles.filter(c => !c.open && !c.fallback && !c.preCycle);
+  if (!closedCycles.length) return;
+
+  const handled = new Set(state.meta?.handled_rollovers || []);
+  const latestClosed = closedCycles[closedCycles.length - 1];
+  if (handled.has(latestClosed.key)) return;
+
+  // Check if there is already a closure transaction for this cycle
+  const closureTag = `cycle-close:${latestClosed.key}`;
+  const alreadyClosedTx = state.transactions.some(t => !t.deleted_at && t.occurrence_key === closureTag);
+  if (alreadyClosedTx) {
+    state.meta = state.meta || { category_rules: [], handled_rollovers: [] };
+    state.meta.handled_rollovers = [...handled, latestClosed.key];
+    saveLocalState(state);
+    return;
+  }
+
+  const bal = Number(computeCycleBalance(state, latestClosed, latestClosed.end).toFixed(2));
+  if (Math.abs(bal) < 0.01) {
+    state.meta = state.meta || { category_rules: [], handled_rollovers: [] };
+    state.meta.handled_rollovers = [...handled, latestClosed.key];
+    saveLocalState(state);
+    return;
+  }
+
+  // Trigger the cycle closure modal automatically for the closed cycle (ended on the day before the new salary)
+  selectedCycleKey = latestClosed.key;
+  rolloverPromptOpen = true;
+  if (typeof window._openCloseCycleModalFor === 'function') {
+    window._openCloseCycleModalFor(latestClosed);
+  }
 }
 
 function render() {
@@ -545,7 +586,7 @@ function renderRecurringSection() {
   const checklistEl = $('encargosChecklist');
   if (checklistEl) {
     if (!rules.length) {
-      checklistEl.innerHTML = '<div class="empty">Ainda não tens fornecedores ou serviços no caderno de encargos. Adiciona o primeiro abaixo (ex.: Luz, Água, Telecomunicações).</div>';
+      checklistEl.innerHTML = '<div class="empty">Ainda não tens fornecedores ou serviços no caderno de encargos. Toca em <b>+ Novo serviço</b> para adicionar (ex.: Luz, Água, Telecomunicações).</div>';
     } else {
       checklistEl.innerHTML = rules
         .map(r => {
@@ -573,10 +614,13 @@ function renderRecurringSection() {
           return `<div class="encargo-card ${isDone ? 'is-paid' : ''}" data-encargo-id="${esc(r.id)}">
             <div class="encargo-header">
               <div style="min-width:0;flex:1">
-                <b>${esc(r.description)}</b>
+                <button type="button" class="encargo-title-btn" data-open-encargo="${esc(r.id)}" title="Ver ficha e editar fornecedor">
+                  <span>${esc(r.description)}</span>
+                  <span style="font-size:12px;opacity:0.65">ⓘ</span>
+                </button>
                 <div class="small">${esc(r.category)} · ${esc(r.person)} · Dia habitual: ${r.day_of_month}</div>
               </div>
-              <span class="pill">${isDone ? '✅ Pago' : '⏳ Por pagar'}</span>
+              <span class="pill" style="cursor:pointer" data-open-encargo="${esc(r.id)}">${isDone ? '✅ Pago' : '⏳ Por pagar'}</span>
             </div>
             ${entityHtml || refHtml ? `<div class="encargo-mb-row">${entityHtml}${refHtml}</div>` : ''}
             <div class="encargo-controls">
@@ -606,32 +650,6 @@ function renderRecurringSection() {
   if ($('encargosCycleTotals')) {
     $('encargosCycleTotals').textContent = `${eur(totalPaid)} pago / ${eur(totalExpected)} total`;
   }
-  if ($('encargosSuppliersCount')) {
-    $('encargosSuppliersCount').textContent = `${rules.length} serviço(s)`;
-  }
-
-  $('recurrenceRules').innerHTML = rules.length
-    ? rules
-        .map(r => {
-          const mbSummary = [
-            r.entity ? `Ent.: ${esc(r.entity)}` : '',
-            r.payment_ref ? `Ref.: ${esc(r.payment_ref)}` : '',
-            Number(r.amount) > 0 ? `Habitual: ${eur(r.amount)}` : ''
-          ].filter(Boolean).join(' · ');
-          return `<div class="item row">
-            <div style="min-width:0;flex:1">
-              <b>${esc(r.description)}</b>
-              <div class="small">${esc(r.category)} · Dia ${r.day_of_month} · ${esc(r.person)}</div>
-              ${mbSummary ? `<div class="small" style="margin-top:2px;font-family:ui-monospace,monospace">${mbSummary}</div>` : ''}
-            </div>
-            <div class="row" style="gap:6px">
-              <button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-rec="${esc(r.id)}">✎</button>
-              <button type="button" class="danger" data-del-rec="${esc(r.id)}">×</button>
-            </div>
-          </div>`;
-        })
-        .join('')
-    : '<div class="empty">Sem fornecedores configurados no caderno de encargos.</div>';
 
   ['mobileMoreBadge', 'drawerRecBadge', 'desktopRecBadge'].forEach(id => {
     const el = $(id);
@@ -968,10 +986,23 @@ document.addEventListener('DOMContentLoaded', () => {
     $('simDesc').focus();
   };
 
-  // --- Fecho de Ciclo (Saldo Negativo -> Transita | Saldo Positivo -> Transita ou Poupança) ---
-  function openCloseCycleModal() {
+  // --- Fecho de Ciclo (Encerra no dia anterior ao novo vencimento e pergunta destino do remanescente) ---
+  function markCycleRolloverHandled(cycleKey) {
+    state.meta = state.meta || { category_rules: [], handled_rollovers: [] };
+    const set = new Set(state.meta.handled_rollovers || []);
+    set.add(cycleKey);
+    state.meta.handled_rollovers = [...set];
+    state.meta.updated_at = Date.now();
+    saveLocalState(state);
+    if (sync.householdId) {
+      enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+    }
+  }
+
+  function openCloseCycleModal(explicitCycle = null) {
     const cycles = buildCycles(state);
-    const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+    const cycle = explicitCycle || cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+    $('closeCycleModal').dataset.targetCycleKey = cycle.key;
     const bal = Number(computeCycleBalance(state, cycle, cycle.end).toFixed(2));
 
     $('closeCycleSubtitle').textContent = `${cycle.monthLabel} (${fmtDate(cycle.start)} a ${fmtDate(cycle.end)})`;
@@ -1011,12 +1042,19 @@ document.addEventListener('DOMContentLoaded', () => {
     $('closeCycleModal').hidden = false;
   }
 
-  if ($('closeCycleBtn')) $('closeCycleBtn').onclick = openCloseCycleModal;
-  if ($('closeCycleModalXBtn')) $('closeCycleModalXBtn').onclick = () => ($('closeCycleModal').hidden = true);
-  if ($('cancelCloseCycleBtn')) $('cancelCloseCycleBtn').onclick = () => ($('closeCycleModal').hidden = true);
+  window._openCloseCycleModalFor = openCloseCycleModal;
+  if ($('closeCycleBtn')) $('closeCycleBtn').onclick = () => openCloseCycleModal();
+  function dismissCloseCycleModal() {
+    const targetKey = $('closeCycleModal').dataset.targetCycleKey;
+    if (targetKey) markCycleRolloverHandled(targetKey);
+    $('closeCycleModal').hidden = true;
+    rolloverPromptOpen = false;
+  }
+  if ($('closeCycleModalXBtn')) $('closeCycleModalXBtn').onclick = dismissCloseCycleModal;
+  if ($('cancelCloseCycleBtn')) $('cancelCloseCycleBtn').onclick = dismissCloseCycleModal;
   if ($('closeCycleModal')) {
     $('closeCycleModal').onclick = e => {
-      if (e.target === $('closeCycleModal')) $('closeCycleModal').hidden = true;
+      if (e.target === $('closeCycleModal')) dismissCloseCycleModal();
     };
   }
 
@@ -1029,7 +1067,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if ($('confirmCloseCycleBtn')) {
     $('confirmCloseCycleBtn').onclick = () => {
       const cycles = buildCycles(state);
-      const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+      const targetKey = $('closeCycleModal').dataset.targetCycleKey || selectedCycleKey;
+      const cycle = cycles.find(c => c.key === targetKey) || currentCycle(cycles);
       const bal = Number(computeCycleBalance(state, cycle, cycle.end).toFixed(2));
       if (Math.abs(bal) < 0.01) {
         $('closeCycleModal').hidden = true;
@@ -1107,8 +1146,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      markCycleRolloverHandled(cycle.key);
       saveLocalState(state);
       $('closeCycleModal').hidden = true;
+      rolloverPromptOpen = false;
+      const latestCycles = buildCycles(state);
+      selectedCycleKey = currentCycle(latestCycles).key;
       render();
       sync.flushOutbox();
     };
@@ -1243,6 +1286,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sync.flushOutbox();
     haptic([14, 25, 14]);
     showToast(isInst ? `${count} prestações registadas e sincronizadas!` : 'Movimento guardado e sincronizado.', { type: 'success' });
+    checkAutomaticCycleRollover();
   };
 
   ['movementCycle', 'filter', 'filterDateFrom', 'filterDateTo', 'filterSearch', 'filterCategory', 'filterPerson'].forEach(id => {
@@ -1337,33 +1381,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const editRec = e.target.closest('[data-edit-rec]');
-    if (editRec) {
-      const r = state.recurring_expenses.find(x => String(x.id) === String(editRec.dataset.editRec));
-      if (r) {
-        $('recurrenceId').value = r.id;
-        $('recurrenceDescription').value = r.description;
-        $('recurrenceCategory').value = r.category;
-        if ($('recurrenceEntity')) $('recurrenceEntity').value = r.entity || '';
-        if ($('recurrenceRef')) $('recurrenceRef').value = r.payment_ref || '';
-        $('recurrenceAmount').value = Number(r.amount) > 0 ? r.amount : '';
-        $('recurrencePerson').value = r.person;
-        $('recurrenceDay').value = r.day_of_month;
-        $('recurrenceFormTitle').textContent = 'Editar fornecedor / serviço';
-        $('recurrenceSave').textContent = 'Guardar alterações';
-        $('recurrenceCancel').hidden = false;
-        $('recurrenceDescription').focus();
-      }
-      return;
-    }
-
-    const delRec = e.target.closest('[data-del-rec]');
-    if (delRec) {
-      const r = state.recurring_expenses.find(x => String(x.id) === String(delRec.dataset.delRec));
-      if (r && confirm(`Remover regra "${r.description}"?`)) {
-        r.deleted_at = Date.now();
-        mutate('recurring_expenses', r);
-      }
+    const openEnc = e.target.closest('[data-open-encargo]');
+    if (openEnc) {
+      openEncargoDetailModal(openEnc.dataset.openEncargo);
       return;
     }
 
@@ -1528,12 +1548,113 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  $('recurrenceCancel').onclick = () => {
+  function openEncargoDetailModal(recId) {
+    const r = (state.recurring_expenses || []).find(x => String(x.id) === String(recId));
+    if (!r) return;
+    $('recurrenceId').value = r.id;
+    $('encargoModalTitle').textContent = r.description;
+    $('encargoModalSubtitle').textContent = `${r.category} · ${r.person}`;
+    $('encargoModalReadView').hidden = false;
+    $('recurrenceForm').hidden = true;
+
+    $('encargoViewName').textContent = r.description;
+    $('encargoViewMeta').textContent = `${r.category} · ${r.person}`;
+    $('encargoViewEntity').textContent = r.entity || '—';
+    $('encargoCopyEntityBtn').hidden = !r.entity;
+    $('encargoCopyEntityBtn').dataset.copyMb = r.entity || '';
+
+    $('encargoViewRef').textContent = r.payment_ref || '—';
+    $('encargoCopyRefBtn').hidden = !r.payment_ref;
+    $('encargoCopyRefBtn').dataset.copyMb = r.payment_ref || '';
+
+    $('encargoViewAmount').textContent = Number(r.amount) > 0 ? eur(r.amount) : 'Variável';
+    $('encargoViewDay').textContent = `Dia ${r.day_of_month}`;
+    $('encargoViewPerson').textContent = r.person;
+
+    // Render history of paid cycles for this supplier
+    const cycles = buildCycles(state);
+    const cpMap = r.cycle_payments && typeof r.cycle_payments === 'object' ? r.cycle_payments : {};
+    const historyEntries = Object.entries(cpMap)
+      .filter(([, entry]) => entry && entry.paid)
+      .map(([cKey, entry]) => {
+        const cy = cycles.find(c => c.key === cKey);
+        return {
+          label: cy ? cy.monthLabel : cKey,
+          paidDate: entry.paidDate || '',
+          amount: Number(entry.amount) || 0
+        };
+      })
+      .sort((a, b) => b.paidDate.localeCompare(a.paidDate))
+      .slice(0, 6);
+
+    $('encargoHistoryList').innerHTML = historyEntries.length
+      ? historyEntries
+          .map(h => `<div class="item row" style="padding:7px 10px"><div><b>${esc(h.label)}</b><div class="small">${h.paidDate ? `Pago a ${fmtDate(h.paidDate)}` : 'Pago'}</div></div><b>${eur(h.amount)}</b></div>`)
+          .join('')
+      : '<div class="empty" style="padding:10px">Sem pagamentos registados anteriormente.</div>';
+
+    $('encargoModal').hidden = false;
+  }
+
+  function openEncargoCreateModal() {
     $('recurrenceId').value = '';
     $('recurrenceForm').reset();
-    $('recurrenceFormTitle').textContent = 'Novo fornecedor / serviço fixo';
+    $('encargoModalTitle').textContent = 'Novo serviço no caderno';
+    $('encargoModalSubtitle').textContent = 'Configura os dados fixos do fornecedor';
+    $('encargoModalReadView').hidden = true;
+    $('recurrenceForm').hidden = false;
     $('recurrenceSave').textContent = 'Guardar no caderno';
-    $('recurrenceCancel').hidden = true;
+    $('encargoModal').hidden = false;
+    setTimeout(() => $('recurrenceDescription').focus(), 50);
+  }
+
+  if ($('openNewEncargoBtn')) $('openNewEncargoBtn').onclick = openEncargoCreateModal;
+  if ($('closeEncargoModalBtn')) $('closeEncargoModalBtn').onclick = () => ($('encargoModal').hidden = true);
+  if ($('encargoModal')) {
+    $('encargoModal').onclick = e => {
+      if (e.target === $('encargoModal')) $('encargoModal').hidden = true;
+    };
+  }
+
+  if ($('encargoSwitchEditBtn')) {
+    $('encargoSwitchEditBtn').onclick = () => {
+      const r = (state.recurring_expenses || []).find(x => String(x.id) === String($('recurrenceId').value));
+      if (!r) return;
+      $('encargoModalTitle').textContent = 'Editar fornecedor / serviço';
+      $('encargoModalSubtitle').textContent = r.description;
+      $('encargoModalReadView').hidden = true;
+      $('recurrenceForm').hidden = false;
+
+      $('recurrenceDescription').value = r.description;
+      $('recurrenceCategory').value = r.category;
+      $('recurrenceEntity').value = r.entity || '';
+      $('recurrenceRef').value = r.payment_ref || '';
+      $('recurrenceAmount').value = Number(r.amount) > 0 ? r.amount : '';
+      $('recurrencePerson').value = r.person;
+      $('recurrenceDay').value = r.day_of_month;
+      $('recurrenceSave').textContent = 'Guardar alterações';
+    };
+  }
+
+  if ($('encargoDeleteBtn')) {
+    $('encargoDeleteBtn').onclick = () => {
+      const r = (state.recurring_expenses || []).find(x => String(x.id) === String($('recurrenceId').value));
+      if (r && confirm(`Remover "${r.description}" do caderno de encargos?`)) {
+        r.deleted_at = Date.now();
+        $('encargoModal').hidden = true;
+        mutate('recurring_expenses', r);
+        showToast('Serviço removido do caderno.');
+      }
+    };
+  }
+
+  $('recurrenceCancel').onclick = () => {
+    const editId = $('recurrenceId').value;
+    if (editId) {
+      openEncargoDetailModal(editId);
+    } else {
+      $('encargoModal').hidden = true;
+    }
   };
 
   $('recurrenceForm').onsubmit = e => {
@@ -1550,9 +1671,9 @@ document.addEventListener('DOMContentLoaded', () => {
         rule.person = $('recurrencePerson').value;
         rule.day_of_month = Number($('recurrenceDay').value) || 1;
         mutate('recurring_expenses', rule);
-        showToast('Fornecedor atualizado no caderno!', { type: 'success' });
+        showToast('Fornecedor atualizado!', { type: 'success' });
+        openEncargoDetailModal(rule.id);
       }
-      $('recurrenceCancel').click();
       return;
     }
 
@@ -1573,7 +1694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     state.recurring_expenses.push(rule);
     mutate('recurring_expenses', rule);
-    $('recurrenceForm').reset();
+    $('encargoModal').hidden = true;
     showToast('Serviço adicionado ao caderno de encargos!', { type: 'success' });
   };
 
@@ -2176,6 +2297,7 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
     sync.flushOutbox();
     showToast(`${count} movimento(s) importado(s) e sincronizado(s)!`, { type: 'success' });
+    checkAutomaticCycleRollover();
   };
 
   $('privacyToggleBtn').onclick = () => security.togglePrivacy();
@@ -2220,6 +2342,42 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   $('appLockBioBtn').onclick = () => security.unlockWithBiometrics();
 
+  if ($('resetDatabaseBtn')) {
+    $('resetDatabaseBtn').onclick = async () => {
+      if (!confirm('Tens a certeza que queres APAGAR TODOS os dados (movimentos, cartões, objetivos, caderno de encargos e regras)? Esta ação não pode ser desfeita.')) return;
+      if (!confirm('Confirmação final: Limpar mesmo toda a base de dados e começar de novo?')) return;
+
+      const now = Date.now();
+      if (sync.householdId) {
+        (state.transactions || []).forEach(t => { if (!t.deleted_at) { t.deleted_at = now; t.updated_at = now; enqueueOutbox('transactions', t); } });
+        (state.credit_cards || []).forEach(c => { if (!c.deleted_at) { c.deleted_at = now; c.updated_at = now; enqueueOutbox('credit_cards', c); } });
+        (state.savings_goals || []).forEach(g => { if (!g.deleted_at) { g.deleted_at = now; g.updated_at = now; enqueueOutbox('savings_goals', g); } });
+        (state.recurring_expenses || []).forEach(r => { if (!r.deleted_at) { r.deleted_at = now; r.updated_at = now; enqueueOutbox('recurring_expenses', r); } });
+        (state.categories || []).forEach(c => { if (!c.deleted_at) { c.deleted_at = now; c.updated_at = now; enqueueOutbox('categories', c); } });
+      }
+
+      const fresh = createInitialState();
+      fresh.household.id = sync.householdId || null;
+      fresh.household.adult1_name = state.household.adult1_name || 'Adulto 1';
+      fresh.household.adult2_name = state.household.adult2_name || 'Adulto 2';
+      fresh.household.cycle_grouping_days = state.household.cycle_grouping_days ?? 14;
+      state = fresh;
+
+      if (sync.householdId) {
+        state.categories.forEach(c => enqueueOutbox('categories', c));
+        enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+      }
+
+      selectedCycleKey = null;
+      movementCycleKey = null;
+      encargosCycleKey = null;
+      saveLocalState(state);
+      render();
+      if (sync.householdId) await sync.flushOutbox();
+      showToast('Base de dados limpa com sucesso! Pronto para começar de novo.', { type: 'success' });
+    };
+  }
+
   window.addEventListener('online', () => sync.flushOutbox());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && sync.householdId) {
@@ -2233,6 +2391,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   render();
+  checkAutomaticCycleRollover();
   initStorageProtectionAndBackupReminder();
   sync.connectAndSubscribe();
 });

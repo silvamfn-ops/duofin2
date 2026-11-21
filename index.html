@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css">
-  <title>DuoFin v2.6.0 — Gestão financeira a dois</title>
+  <title>DuoFin v2.6.1 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
@@ -437,14 +437,17 @@
     <!-- ================= CADERNO DE ENCARGOS ================= -->
     <section id="recorrentes" class="view">
       <div class="card">
-        <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div>
-            <h2 style="margin:0">📋 Caderno de Encargos do Ciclo</h2>
-            <div class="small" id="encargosCycleSubtitle">Controlo de pagamentos fixos e dados Multibanco (sem interferir com os saldos importados)</div>
+            <h2 style="margin:0">📋 Caderno de Encargos</h2>
+            <div class="small" id="encargosCycleSubtitle">Toca num fornecedor para ver Entidade/Referência, histórico ou editar</div>
           </div>
-          <span class="pill" id="encargosProgressBadge">0 / 0 pagos</span>
+          <div class="row" style="gap:8px">
+            <span class="pill" id="encargosProgressBadge">0 / 0 pagos</span>
+            <button type="button" class="primary" id="openNewEncargoBtn" style="padding:7px 12px;font-size:13px">+ Novo serviço</button>
+          </div>
         </div>
-        <div class="row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
           <div style="flex:1;min-width:200px">
             <label for="encargosCycleSelect" style="margin-top:0">Ciclo a consultar</label>
             <select id="encargosCycleSelect"></select>
@@ -455,60 +458,6 @@
           </div>
         </div>
         <div id="encargosChecklist"></div>
-      </div>
-
-      <div class="card">
-        <h2 id="recurrenceFormTitle">Novo fornecedor / serviço fixo</h2>
-        <form id="recurrenceForm">
-          <input id="recurrenceId" type="hidden">
-          <div class="grid">
-            <div>
-              <label for="recurrenceDescription">Fornecedor / Serviço</label>
-              <input id="recurrenceDescription" maxlength="100" placeholder="Ex.: EDP Comercial, Águas, MEO, Ginásio" required>
-            </div>
-            <div>
-              <label for="recurrenceCategory">Categoria da despesa</label>
-              <select id="recurrenceCategory"></select>
-            </div>
-          </div>
-          <div class="grid">
-            <div>
-              <label for="recurrenceEntity">Entidade Multibanco (fixa · opcional)</label>
-              <input id="recurrenceEntity" maxlength="10" inputmode="numeric" placeholder="Ex.: 20174">
-            </div>
-            <div>
-              <label for="recurrenceRef">Referência (fixa ou nota · opcional)</label>
-              <input id="recurrenceRef" maxlength="30" placeholder="Ex.: 123 456 789 ou Variável na fatura">
-            </div>
-          </div>
-          <div class="grid-3">
-            <div>
-              <label for="recurrenceAmount">Valor habitual (€ · opcional)</label>
-              <input id="recurrenceAmount" type="number" min="0" step="0.01" placeholder="0,00">
-            </div>
-            <div>
-              <label for="recurrenceDay">Dia habitual de pagamento</label>
-              <input id="recurrenceDay" type="number" min="1" max="31" value="1" required>
-            </div>
-            <div>
-              <label for="recurrencePerson">Responsável habitual</label>
-              <select id="recurrencePerson"></select>
-            </div>
-          </div>
-          <p class="small">Este registo funciona como guia de pagamento e visto por ciclo. Os valores reais entram nas contas quando importares o extrato bancário.</p>
-          <div class="actions">
-            <button class="primary" type="submit" id="recurrenceSave">Guardar no caderno</button>
-            <button class="ghost" type="button" id="recurrenceCancel" hidden>Cancelar edição</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="card">
-        <div class="row" style="margin-bottom:6px">
-          <h2 style="margin:0">Fornecedores e dados fixos configurados</h2>
-          <span class="small" id="encargosSuppliersCount">0 serviços</span>
-        </div>
-        <div id="recurrenceRules"></div>
       </div>
     </section>
 
@@ -837,6 +786,14 @@
           <button type="button" class="danger" id="disablePinBtn" hidden>Remover PIN</button>
         </div>
       </div>
+
+      <div class="card" style="border-color:var(--red, #dc2626)">
+        <h2 style="color:var(--red, #dc2626)">⚠️ Zona de Reinicialização (Limpar Base de Dados)</h2>
+        <p class="small">Apaga todos os movimentos, cartões de crédito, objetivos de poupança, regras automáticas e caderno de encargos para começar do zero. Aconselhamos exportar uma cópia de segurança JSON antes de avançar.</p>
+        <div class="actions">
+          <button type="button" class="danger" id="resetDatabaseBtn">🗑️ Limpar base de dados e começar de novo</button>
+        </div>
+      </div>
     </section>
 
     <!-- Notificação flutuante (Toast) -->
@@ -1046,7 +1003,104 @@
     <!-- Contentor oculto no ecrã, visível apenas na impressão / Exportação PDF A4 -->
     <div id="printReportContainer" class="print-only-report" aria-hidden="true"></div>
 
-    <footer>DuoFin 2 · v2.6.0 · Gestão financeira a dois</footer>
+    <!-- Modal de Consulta e Edição de Fornecedor (Caderno de Encargos) -->
+    <div id="encargoModal" class="modal-backdrop" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encargoModalTitle">
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <h2 id="encargoModalTitle" style="margin:0">Ficha do Fornecedor</h2>
+            <div class="small" id="encargoModalSubtitle">Dados fixos de pagamento e histórico</div>
+          </div>
+          <button type="button" class="icon-btn" id="closeEncargoModalBtn" aria-label="Fechar">✕</button>
+        </div>
+
+        <input type="hidden" id="recurrenceId">
+
+        <!-- Vista de Consulta Rápida -->
+        <div id="encargoModalReadView">
+          <div class="tx-modal-hero" style="padding:12px 8px">
+            <span class="tx-modal-icon">🧾</span>
+            <div class="tx-modal-desc" id="encargoViewName" style="font-size:18px;font-weight:700;margin-top:4px"></div>
+            <div class="small" id="encargoViewMeta" style="margin-top:2px"></div>
+          </div>
+
+          <div class="tx-modal-specs" style="margin-top:8px">
+            <div class="tx-spec-row">
+              <span>Entidade MB</span>
+              <div class="row" style="gap:6px">
+                <b id="encargoViewEntity" style="font-family:ui-monospace,monospace">—</b>
+                <button type="button" class="mb-copy-chip" id="encargoCopyEntityBtn" hidden>Copiar 📋</button>
+              </div>
+            </div>
+            <div class="tx-spec-row">
+              <span>Referência</span>
+              <div class="row" style="gap:6px">
+                <b id="encargoViewRef" style="font-family:ui-monospace,monospace">—</b>
+                <button type="button" class="mb-copy-chip" id="encargoCopyRefBtn" hidden>Copiar 📋</button>
+              </div>
+            </div>
+            <div class="tx-spec-row"><span>Valor habitual</span><b id="encargoViewAmount">0,00 €</b></div>
+            <div class="tx-spec-row"><span>Dia habitual</span><b id="encargoViewDay">Dia 1</b></div>
+            <div class="tx-spec-row"><span>Responsável</span><b id="encargoViewPerson">Conta conjunta</b></div>
+          </div>
+
+          <div id="encargoHistoryWrap" style="margin-top:12px">
+            <div class="small" style="font-weight:600;margin-bottom:6px">Últimos pagamentos registados</div>
+            <div id="encargoHistoryList"></div>
+          </div>
+
+          <div class="actions" style="justify-content:space-between;margin-top:16px">
+            <button type="button" class="danger" id="encargoDeleteBtn">Remover</button>
+            <button type="button" class="primary" id="encargoSwitchEditBtn">✎ Editar dados</button>
+          </div>
+        </div>
+
+        <!-- Vista de Edição / Criação -->
+        <form id="recurrenceForm" hidden>
+          <div class="grid">
+            <div>
+              <label for="recurrenceDescription">Fornecedor / Serviço</label>
+              <input id="recurrenceDescription" maxlength="100" placeholder="Ex.: EDP Comercial, Águas, MEO" required>
+            </div>
+            <div>
+              <label for="recurrenceCategory">Categoria da despesa</label>
+              <select id="recurrenceCategory"></select>
+            </div>
+          </div>
+          <div class="grid">
+            <div>
+              <label for="recurrenceEntity">Entidade Multibanco (fixa · opcional)</label>
+              <input id="recurrenceEntity" maxlength="10" inputmode="numeric" placeholder="Ex.: 20174">
+            </div>
+            <div>
+              <label for="recurrenceRef">Referência (fixa ou nota · opcional)</label>
+              <input id="recurrenceRef" maxlength="30" placeholder="Ex.: 123 456 789 ou Variável na fatura">
+            </div>
+          </div>
+          <div class="grid-3">
+            <div>
+              <label for="recurrenceAmount">Valor habitual (€)</label>
+              <input id="recurrenceAmount" type="number" min="0" step="0.01" placeholder="0,00">
+            </div>
+            <div>
+              <label for="recurrenceDay">Dia habitual</label>
+              <input id="recurrenceDay" type="number" min="1" max="31" value="1" required>
+            </div>
+            <div>
+              <label for="recurrencePerson">Responsável</label>
+              <select id="recurrencePerson"></select>
+            </div>
+          </div>
+          <p class="small">Os valores reais entram nas contas quando importares o extrato bancário.</p>
+          <div class="actions" style="justify-content:flex-end;margin-top:14px">
+            <button type="button" class="ghost" id="recurrenceCancel">Cancelar</button>
+            <button type="submit" class="primary" id="recurrenceSave">Guardar no caderno</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <footer>DuoFin 2 · v2.6.1 · Gestão financeira a dois</footer>
   </div>
   <script type="module" src="./js/app.js"></script>
 </body>
