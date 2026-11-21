@@ -14,6 +14,38 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css">
+  <style>
+    /* Ajuste da barra de separadores no Desktop (Opção A) */
+    @media (min-width: 680px) {
+      .wrap {
+        max-width: 1080px;
+      }
+
+      #navWrapper.nav-wrapper {
+        overflow: visible;
+        padding-left: 0;
+        padding-right: 0;
+      }
+
+      #mainNav {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        overflow-x: visible;
+        gap: 6px;
+        width: 100%;
+      }
+
+      #mainNav > button:not(.mobile-more-btn) {
+        padding: 7px 12px;
+        font-size: 13px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        gap: 5px;
+      }
+    }
+  </style>
   <title>DuoFin v2.1.0 — Gestão financeira a dois</title>
 </head>
 <body>
