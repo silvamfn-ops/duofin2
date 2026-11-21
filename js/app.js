@@ -353,7 +353,7 @@ function render() {
       ? ccStats
           .map(
             c =>
-              `<div class="item row"><div><b>💳 ${esc(c.name)}</b><div class="small">${esc(c.owner)} · Dívida atual: <b>${eur(c.debt)}</b></div></div><button type="button" class="danger" data-del-cc="${esc(c.id)}">Remover</button></div>`
+              `<div class="item row"><div><b>💳 ${esc(c.name)}</b><div class="small">${esc(c.owner)}${c.limit > 0 ? ` · Plafond ${eur(c.limit)}` : ''} · Dívida atual: <b>${eur(c.debt)}</b></div></div><div class="row" style="gap:6px"><button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-cc="${esc(c.id)}" title="Editar cartão">✎</button><button type="button" class="danger" data-del-cc="${esc(c.id)}">Remover</button></div></div>`
           )
           .join('')
       : '<div class="empty">Sem cartões configurados.</div>';
@@ -1343,10 +1343,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const editCc = e.target.closest('[data-edit-cc]');
+    if (editCc) {
+      const card = state.credit_cards.find(c => String(c.id) === String(editCc.dataset.editCc));
+      if (card) {
+        $('ccId').value = card.id;
+        $('ccName').value = card.name || '';
+        $('ccLimit').value = Number(card.card_limit) > 0 ? card.card_limit : '';
+        $('ccInitialDebt').value = Number(card.initial_debt) || 0;
+        $('ccOwner').value = card.owner || 'Conta conjunta';
+        if ($('ccFormTitle')) $('ccFormTitle').textContent = `Editar cartão: ${card.name}`;
+        if ($('ccSaveBtn')) $('ccSaveBtn').textContent = 'Guardar alterações';
+        if ($('ccCancelBtn')) $('ccCancelBtn').hidden = false;
+        $('ccName').focus();
+      }
+      return;
+    }
+
     const delCc = e.target.closest('[data-del-cc]');
     if (delCc) {
       const card = state.credit_cards.find(c => String(c.id) === String(delCc.dataset.delCc));
       if (card && confirm(`Remover cartão "${card.name}"?`)) {
+        if ($('ccId') && String($('ccId').value) === String(card.id) && $('ccCancelBtn')) {
+          $('ccCancelBtn').click();
+        }
         card.deleted_at = Date.now();
         mutate('credit_cards', card);
       }
@@ -1991,19 +2011,63 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Categoria criada.', { type: 'success' });
   };
 
+  if ($('ccCancelBtn')) {
+    $('ccCancelBtn').onclick = () => {
+      $('ccId').value = '';
+      $('creditCardForm').reset();
+      if ($('ccInitialDebt')) $('ccInitialDebt').value = '0';
+      if ($('ccFormTitle')) $('ccFormTitle').textContent = 'Adicionar cartão de crédito';
+      if ($('ccSaveBtn')) $('ccSaveBtn').textContent = 'Guardar cartão';
+      $('ccCancelBtn').hidden = true;
+    };
+  }
+
   $('creditCardForm').onsubmit = e => {
     e.preventDefault();
+    const editId = $('ccId') ? $('ccId').value : '';
+    const newName = $('ccName').value.trim();
+    const newLimit = Math.max(0, Number($('ccLimit').value) || 0);
+    const newInitialDebt = Math.max(0, Number($('ccInitialDebt').value) || 0);
+    const newOwner = $('ccOwner').value || 'Conta conjunta';
+
+    if (editId) {
+      const card = state.credit_cards.find(c => String(c.id) === String(editId));
+      if (card) {
+        const oldName = card.name;
+        card.name = newName;
+        card.card_limit = newLimit;
+        card.initial_debt = newInitialDebt;
+        card.owner = newOwner;
+
+        if (oldName && oldName !== newName) {
+          for (const tx of state.transactions || []) {
+            if (!tx.deleted_at && (String(tx.card_id) === String(card.id) || tx.card_name === oldName)) {
+              tx.card_name = newName;
+              tx.updated_at = Date.now();
+              enqueueOutbox('transactions', tx);
+            }
+          }
+        }
+
+        mutate('credit_cards', card);
+        showToast('Cartão de crédito atualizado.', { type: 'success' });
+      }
+      if ($('ccCancelBtn')) $('ccCancelBtn').click();
+      return;
+    }
+
     const card = {
       id: uid('cc'),
-      name: $('ccName').value.trim(),
-      card_limit: Math.max(0, Number($('ccLimit').value) || 0),
-      initial_debt: Math.max(0, Number($('ccInitialDebt').value) || 0),
-      owner: $('ccOwner').value || 'Conta conjunta',
+      name: newName,
+      card_limit: newLimit,
+      initial_debt: newInitialDebt,
+      owner: newOwner,
       updated_at: Date.now()
     };
     state.credit_cards.push(card);
     mutate('credit_cards', card);
     $('creditCardForm').reset();
+    if ($('ccInitialDebt')) $('ccInitialDebt').value = '0';
     showToast('Cartão de crédito adicionado.', { type: 'success' });
   };
 
