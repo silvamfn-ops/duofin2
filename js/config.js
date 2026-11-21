@@ -1,5 +1,6 @@
-export const APP_VERSION = 'v2.0.1';
+export const APP_VERSION = 'v2.1.0';
 export const DAY_MS = 86400000;
+const UI_PREFS_KEY = 'duofin2-ui-prefs-v1';
 
 export const $ = id => document.getElementById(id);
 
@@ -60,6 +61,42 @@ export function haptic(pattern = 12) {
   } catch {}
 }
 
+export function loadUiPrefs() {
+  try {
+    return { theme: 'auto', density: 'balanced', summaryLevel: 'detailed', ...JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}') };
+  } catch {
+    return { theme: 'auto', density: 'balanced', summaryLevel: 'detailed' };
+  }
+}
+
+export function saveUiPrefs(patch) {
+  const next = { ...loadUiPrefs(), ...patch };
+  localStorage.setItem(UI_PREFS_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function applyThemeAndDensity(onThemeChanged = null) {
+  const prefs = loadUiPrefs();
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const resolved = prefs.theme === 'dark' || (prefs.theme === 'auto' && prefersDark) ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', resolved);
+  document.documentElement.setAttribute('data-density', prefs.density || 'balanced');
+
+  const meta = $('metaThemeColor');
+  if (meta) meta.setAttribute('content', resolved === 'dark' ? '#09121d' : '#142b45');
+
+  const quickBtn = $('themeQuickToggleBtn');
+  if (quickBtn) {
+    quickBtn.textContent = prefs.theme === 'dark' ? '🌙' : prefs.theme === 'light' ? '☀️' : '🌓';
+    quickBtn.title = `Tema: ${prefs.theme === 'dark' ? 'Escuro' : prefs.theme === 'light' ? 'Claro' : 'Automático'}`;
+  }
+  if ($('themeMode')) $('themeMode').value = prefs.theme;
+  if ($('densityMode')) $('densityMode').value = prefs.density;
+
+  if (typeof onThemeChanged === 'function') onThemeChanged(resolved);
+  return resolved;
+}
+
 export function showToast(msg, opts = {}) {
   const container = $('toastContainer');
   if (!container) return;
@@ -94,7 +131,7 @@ export function showToast(msg, opts = {}) {
 
 export function evaluateAmountExpression(raw) {
   const cleaned = String(raw ?? '')
-    .replace(/[€$£\s ]/g, '')
+    .replace(/[€$£\s\u00A0]/g, '')
     .replace(/,/g, '.')
     .replace(/[−–—]/g, '-')
     .replace(/[×xX]/g, '*')
