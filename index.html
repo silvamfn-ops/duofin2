@@ -107,6 +107,7 @@
             <button type="button" class="icon-btn" id="prevCycleBtn" title="Ciclo anterior" aria-label="Ciclo anterior">‹</button>
             <select id="cycleSelect" aria-label="Selecionar ciclo financeiro" style="max-width:220px"></select>
             <button type="button" class="icon-btn" id="nextCycleBtn" title="Ciclo seguinte" aria-label="Ciclo seguinte">›</button>
+            <button type="button" class="secondary" id="exportCyclePdfBtn" title="Gerar relatório A4 em PDF deste ciclo" style="padding:6px 10px;font-size:12.5px">📄 Relatório PDF</button>
             <button type="button" class="secondary" id="closeCycleBtn" title="Decidir destino do saldo final deste ciclo" style="padding:6px 10px;font-size:12.5px">🔒 Fechar ciclo</button>
           </div>
         </div>
@@ -326,7 +327,10 @@
       <div class="card">
         <div class="row" style="flex-wrap:wrap;gap:8px">
           <h2 style="margin:0">Histórico de movimentos</h2>
-          <button class="secondary" type="button" id="exportCsvBtn">📊 Exportar CSV</button>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button class="secondary" type="button" id="exportMovementsPdfBtn">📄 Exportar PDF</button>
+            <button class="secondary" type="button" id="exportCsvBtn">📊 Exportar CSV</button>
+          </div>
         </div>
         <div class="filter-bar" style="margin-top:12px">
           <div class="grid">
@@ -668,8 +672,10 @@
       </div>
 
       <div class="card">
-        <h2>📥 Importar Cópia de Segurança</h2>
+        <h2>📥 Importar e Proteger Cópia de Segurança</h2>
         <p class="small">Restaura os teus movimentos, cartões e objetivos a partir de uma cópia de segurança JSON exportada anteriormente.</p>
+        <div id="storagePersistenceStatus" class="alert" style="margin:8px 0;font-size:12.5px">A verificar proteção de armazenamento local...</div>
+        <div id="backupReminderLine" class="small" style="margin-bottom:8px;font-weight:600"></div>
         <div class="actions">
           <label class="secondary" style="cursor:pointer">📂 Selecionar ficheiro JSON<input id="importLegacyBackup" type="file" accept=".json,application/json" hidden></label>
           <button type="button" class="secondary" id="exportBackupBtn">💾 Exportar cópia de segurança</button>
@@ -887,6 +893,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Contentor oculto no ecrã, visível apenas na impressão / Exportação PDF A4 -->
+    <div id="printReportContainer" class="print-only-report" aria-hidden="true"></div>
 
     <footer>DuoFin 2 · v2.2.0 · Gestão financeira a dois</footer>
   </div>

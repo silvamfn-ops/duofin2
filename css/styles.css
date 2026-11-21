@@ -347,3 +347,150 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:20px 0 36px}
 [data-theme="dark"] .dup-badge {
   color: #fbbf24;
 }
+
+/* --- Relatório PDF A4 (@media print) --- */
+.print-only-report {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-size: 11pt;
+  }
+
+  header,
+  .nav-wrapper,
+  .view,
+  .fab,
+  .modal-backdrop,
+  .toast-container,
+  .app-lock-overlay,
+  .mobile-more-drawer,
+  .mobile-drawer-backdrop,
+  footer {
+    display: none !important;
+  }
+
+  .wrap {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-only-report {
+    display: block !important;
+    width: 100%;
+  }
+
+  .rep-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #173653;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+
+  .rep-brand {
+    font-size: 8.5pt;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #173653;
+  }
+
+  .rep-header h1 {
+    font-size: 17pt;
+    margin: 2px 0;
+    color: #111827;
+  }
+
+  .rep-sub, .rep-meta {
+    font-size: 9pt;
+    color: #4b5563;
+  }
+
+  .rep-meta {
+    text-align: right;
+  }
+
+  .rep-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .rep-kpi {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: #f9fafb;
+  }
+
+  .rep-kpi span {
+    display: block;
+    font-size: 8.5pt;
+    color: #4b5563;
+  }
+
+  .rep-kpi b {
+    font-size: 12.5pt;
+  }
+
+  .rep-two-col {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  .print-only-report h3 {
+    font-size: 10.5pt;
+    color: #173653;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 3px;
+    margin: 10px 0 6px;
+    page-break-after: avoid;
+  }
+
+  .rep-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin-bottom: 10px;
+  }
+
+  .rep-table th {
+    background: #f3f4f6;
+    color: #1f2937;
+    text-align: left;
+    font-weight: 700;
+    padding: 5px 6px;
+    border-bottom: 1.5px solid #9ca3af;
+  }
+
+  .rep-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+
+  .rep-table tr {
+    page-break-inside: avoid;
+  }
+
+  .rep-table .num {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .pos { color: #166534 !important; }
+  .neg { color: #991b1b !important; }
+}

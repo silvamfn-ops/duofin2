@@ -16,6 +16,7 @@ import {
 import { SecurityManager } from './security.js';
 import { extractLinesFromPdf, parseStatementLines, guessCategory, learnCategoryRule } from './importers.js';
 import { evaluateStatementDuplicates } from './duplicate-detector.js';
+import { generateCyclePdfReport } from './pdf-report.js';
 import { drawSavingsChart, drawAnalyticsChart } from './charts.js';
 
 let state = loadLocalState();
@@ -48,6 +49,7 @@ const sync = new DuoFinSync(
       badge.textContent = status === 'synced' ? '● Em tempo real' : status === 'syncing' ? '↻ Sincronizar' : '○ Local';
     }
     updateHouseholdPanels();
+    initStorageProtectionAndBackupReminder();
   }
 );
 
@@ -613,6 +615,49 @@ function runImpactSimulator() {
     <div><strong>${esc(desc)}</strong>: ${n > 1 ? `${n}x de <b>${eur(perMonth)}</b>/ciclo` : `<b>${eur(amount)}</b> a pronto`}</div>
     <div style="margin-top:6px">Saldo atual do ciclo: <b>${eur(curBal)}</b> → Após impacto: <b class="${newBal < 0 ? 'minus' : 'plus'}">${eur(newBal)}</b></div>
   `;
+}
+
+
+async function initStorageProtectionAndBackupReminder() {
+  const statusEl = $('storagePersistenceStatus');
+  const reminderEl = $('backupReminderLine');
+  const lastBackup = localStorage.getItem('duofin2_last_backup_date');
+
+  if (reminderEl) {
+    if (!lastBackup) {
+      reminderEl.textContent = '⚠️ Ainda não fizeste nenhuma cópia de segurança JSON neste dispositivo.';
+    } else {
+      const days = Math.floor((Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24));
+      reminderEl.textContent = days === 0
+        ? '✅ Última cópia de segurança exportada hoje.'
+        : `ℹ️ Última cópia de segurança há ${days} dia(s) (${fmtDate(lastBackup.slice(0, 10))}).`;
+    }
+  }
+
+  if (!statusEl) return;
+
+  let persisted = false;
+  if (navigator.storage && navigator.storage.persist) {
+    try {
+      persisted = await navigator.storage.persisted();
+      if (!persisted) {
+        persisted = await navigator.storage.persist();
+      }
+    } catch (_) {}
+  }
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  if (sync.householdId) {
+    statusEl.className = 'alert good';
+    statusEl.innerHTML = '☁️ <b>Proteção máxima ativa:</b> Os teus dados estão sincronizados na nuvem (Supabase). Mesmo que limpes o navegador, basta iniciar sessão para recuperar tudo.';
+  } else if (isStandalone && persisted) {
+    statusEl.className = 'alert good';
+    statusEl.innerHTML = '📱 <b>App instalada com armazenamento protegido:</b> Os dados estão isolados do histórico normal do navegador. Ativa também a nuvem Supabase acima para backup automático.';
+  } else {
+    statusEl.className = 'alert';
+    statusEl.innerHTML = '⚠️ <b>Atenção no telemóvel:</b> Estás a usar o DuoFin apenas em modo local no navegador. Se limparas os dados de navegação do Safari/Chrome, o histórico local será apagado. <b>Solução:</b> Instala a app no ecrã principal e liga a sincronização Supabase acima.';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1450,8 +1495,47 @@ document.addEventListener('DOMContentLoaded', () => {
     a.href = url;
     a.download = `duofin2-backup-${iso()}.json`;
     a.click();
+    localStorage.setItem('duofin2_last_backup_date', new Date().toISOString());
+    initStorageProtectionAndBackupReminder();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Cópia de segurança exportada!', { type: 'success' });
   };
+
+  if ($('exportCyclePdfBtn')) {
+    $('exportCyclePdfBtn').onclick = () => {
+      const cycles = buildCycles(state);
+      const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+      generateCyclePdfReport(state, cycle);
+    };
+  }
+
+  if ($('exportMovementsPdfBtn')) {
+    $('exportMovementsPdfBtn').onclick = () => {
+      const cycles = buildCycles(state);
+      const cycle = cycles.find(c => c.key === movementCycleKey) || currentCycle(cycles);
+      let list = state.transactions.filter(t => !t.deleted_at);
+      if (movementCycleKey && movementCycleKey !== 'all') {
+        const cy = cycles.find(c => c.key === movementCycleKey);
+        if (cy) list = list.filter(t => t.date >= cy.start && t.date <= cy.end);
+      }
+      const tp = $('filter').value;
+      if (tp === 'expense') list = list.filter(t => t.type === 'expense');
+      else if (tp === 'cc_expense') list = list.filter(t => t.type === 'expense' && t.credit_card_id);
+      else if (tp !== 'all') list = list.filter(t => t.type === tp);
+      const df = $('filterDateFrom').value;
+      const dt = $('filterDateTo').value;
+      if (df) list = list.filter(t => t.date >= df);
+      if (dt) list = list.filter(t => t.date <= dt);
+      const q = $('filterSearch').value.trim().toLowerCase();
+      if (q) list = list.filter(t => String(t.description || '').toLowerCase().includes(q));
+      const cat = $('filterCategory').value;
+      if (cat !== 'all') list = list.filter(t => t.category === cat);
+      const per = $('filterPerson').value;
+      if (per !== 'all') list = list.filter(t => t.person === per);
+
+      generateCyclePdfReport(state, cycle, list, 'Relatório de Movimentos Filtrados');
+    };
+  }
 
   $('exportCsvBtn').onclick = () => {
     const rows = [['Data', 'Tipo', 'Descrição', 'Categoria', 'Responsável', 'Valor']]
@@ -1653,5 +1737,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   materializeRecurringTransactions();
   render();
+  initStorageProtectionAndBackupReminder();
   sync.connectAndSubscribe();
 });
