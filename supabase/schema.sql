@@ -1,5 +1,5 @@
 -- ============================================================================
--- DUOFIN 2.0 — ESQUEMA DE BASE DE DADOS SUPABASE (NORMALIZADO + REALTIME + RLS)
+-- DUOFIN 2.2.0 — ESQUEMA DE BASE DE DADOS SUPABASE (NORMALIZADO + REALTIME + RLS)
 -- ============================================================================
 create extension if not exists "pgcrypto";
 
@@ -134,6 +134,11 @@ drop policy if exists "Membros veem membros do mesmo household" on public.househ
 create policy "Membros veem membros do mesmo household" on public.household_members
   for select using (public.is_household_member(household_id));
 
+drop policy if exists "Membros gerem convites do seu household" on public.household_invites;
+create policy "Membros gerem convites do seu household" on public.household_invites
+  for all using (public.is_household_member(household_id))
+  with check (public.is_household_member(household_id));
+
 drop policy if exists "Membros gerem categorias" on public.categories;
 create policy "Membros gerem categorias" on public.categories
   for all using (public.is_household_member(household_id)) with check (public.is_household_member(household_id));
@@ -213,10 +218,46 @@ begin
 end;
 $$;
 
-alter publication supabase_realtime add table public.transactions;
-alter publication supabase_realtime add table public.categories;
-alter publication supabase_realtime add table public.credit_cards;
-alter publication supabase_realtime add table public.savings_goals;
-alter publication supabase_realtime add table public.recurring_expenses;
-alter publication supabase_realtime add table public.households;
-alter publication supabase_realtime add table public.household_meta;
+alter table public.transactions replica identity full;
+alter table public.categories replica identity full;
+alter table public.credit_cards replica identity full;
+alter table public.savings_goals replica identity full;
+alter table public.recurring_expenses replica identity full;
+alter table public.households replica identity full;
+alter table public.household_meta replica identity full;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.transactions;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.categories;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.credit_cards;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.savings_goals;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.recurring_expenses;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.households;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.household_meta;
+exception when duplicate_object then null;
+end $$;

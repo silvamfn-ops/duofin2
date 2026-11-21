@@ -1,18 +1,25 @@
 {
   "name": "DuoFin 2 — Gestão financeira a dois",
   "short_name": "DuoFin 2",
-  "version": "2.0.0",
-  "description": "Gestão financeira a dois em tempo real, segura e multiplataforma.",
+  "description": "Gestão financeira partilhada a dois com sincronização em tempo real.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f4f6f9",
+  "background_color": "#142b45",
   "theme_color": "#142b45",
-  "lang": "pt-PT",
+  "orientation": "portrait-primary",
   "icons": [
-    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "./icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "./icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

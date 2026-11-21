@@ -1,8 +1,24 @@
+import { uid } from './config.js';
+
 const DB_STORAGE_KEY = 'duofin2-state-v1';
 const OUTBOX_KEY = 'duofin2-outbox-v1';
 
 export function createInitialState() {
   const nowTs = Date.now();
+  const seed = Math.random().toString(36).slice(2, 7);
+  const defaultCats = [
+    ['Habitação', 850],
+    ['Supermercado', 450],
+    ['Água, luz e gás', 180],
+    ['Transportes', 250],
+    ['Telecomunicações', 70],
+    ['Saúde e farmácia', 80],
+    ['Crianças e família', 150],
+    ['Restaurantes e lazer', 150],
+    ['Vestuário e pessoal', 120],
+    ['Outros / imprevistos', 300]
+  ];
+
   return {
     household: {
       id: null,
@@ -14,18 +30,14 @@ export function createInitialState() {
       auto_adjust_budgets: false,
       updated_at: nowTs
     },
-    categories: [
-      { id: 'cat-1', name: 'Habitação', budget: 850, locked: false, sort_order: 1, updated_at: nowTs },
-      { id: 'cat-2', name: 'Supermercado', budget: 450, locked: false, sort_order: 2, updated_at: nowTs },
-      { id: 'cat-3', name: 'Água, luz e gás', budget: 180, locked: false, sort_order: 3, updated_at: nowTs },
-      { id: 'cat-4', name: 'Transportes', budget: 250, locked: false, sort_order: 4, updated_at: nowTs },
-      { id: 'cat-5', name: 'Telecomunicações', budget: 70, locked: false, sort_order: 5, updated_at: nowTs },
-      { id: 'cat-6', name: 'Saúde e farmácia', budget: 80, locked: false, sort_order: 6, updated_at: nowTs },
-      { id: 'cat-7', name: 'Crianças e família', budget: 150, locked: false, sort_order: 7, updated_at: nowTs },
-      { id: 'cat-8', name: 'Restaurantes e lazer', budget: 150, locked: false, sort_order: 8, updated_at: nowTs },
-      { id: 'cat-9', name: 'Vestuário e pessoal', budget: 120, locked: false, sort_order: 9, updated_at: nowTs },
-      { id: 'cat-10', name: 'Outros / imprevistos', budget: 300, locked: false, sort_order: 10, updated_at: nowTs }
-    ],
+    categories: defaultCats.map(([name, budget], idx) => ({
+      id: `cat-${seed}-${idx + 1}`,
+      name,
+      budget,
+      locked: false,
+      sort_order: idx + 1,
+      updated_at: nowTs
+    })),
     credit_cards: [],
     savings_goals: [],
     recurring_expenses: [],
@@ -46,7 +58,7 @@ export function loadLocalState() {
       raw.credit_cards = Array.isArray(raw.credit_cards) ? raw.credit_cards : [];
       raw.savings_goals = Array.isArray(raw.savings_goals) ? raw.savings_goals : [];
       raw.recurring_expenses = Array.isArray(raw.recurring_expenses) ? raw.recurring_expenses : [];
-      raw.meta = raw.meta || { category_rules: [], handled_rollovers: [] };
+      raw.meta = raw.meta || { category_rules: [], handled_rollovers: [], updated_at: Date.now() };
       return raw;
     }
   } catch (e) {
@@ -92,7 +104,6 @@ export function clearAllOutbox() {
   localStorage.removeItem(OUTBOX_KEY);
 }
 
-// Conversor automático do formato antigo DuoFin v6.x (backup JSON) para DuoFin 2.0
 export function convertLegacyV1Backup(legacyJson) {
   if (!legacyJson || !legacyJson.settings || !Array.isArray(legacyJson.transactions)) {
     throw new Error('O ficheiro não corresponde a um backup válido do DuoFin.');
@@ -114,7 +125,7 @@ export function convertLegacyV1Backup(legacyJson) {
   };
 
   state.categories = (s.categories || []).map((c, idx) => ({
-    id: `cat-v1-${idx}-${nowTs.toString(36)}`,
+    id: uid(`cat-v1-${idx}`),
     name: c.name,
     budget: Number(c.budget) || 0,
     locked: !!c.locked,

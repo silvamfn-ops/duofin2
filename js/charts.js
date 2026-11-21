@@ -59,7 +59,6 @@ export function drawSavingsChart(state) {
     item
   }));
 
-  // Área suave sob a linha
   ctx.fillStyle = 'rgba(197, 165, 107, 0.14)';
   ctx.beginPath();
   ctx.moveTo(pts[0].x, padT + plotH);
@@ -205,7 +204,6 @@ export function drawAnalyticsChart(state, cycle, metric = 'categories', chartTyp
       ctx.fillText(it.label.slice(0, 10), x + barW / 2, h - 10);
     });
   } else {
-    // Barras horizontais
     const shown = items.slice(0, 8);
     const padL = 122, padR = 66, padT = 12, padB = 12;
     const plotW = w - padL - padR, plotH = h - padT - padB;

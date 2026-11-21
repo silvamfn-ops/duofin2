@@ -1,5 +1,3 @@
-import { fmtDate } from './config.js';
-
 const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
 let pdfPromise = null;
 let workerBlobUrl = null;
@@ -18,9 +16,7 @@ async function configurePdfWorker(pdfjs) {
       pdfjs.GlobalWorkerOptions.workerSrc = workerBlobUrl;
       return;
     }
-  } catch (_) {
-    // Fallback para URL direto caso o fetch do blob falhe
-  }
+  } catch (_) {}
   pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.js`;
 }
 
@@ -61,7 +57,6 @@ export async function extractLinesFromPdf(file) {
   try {
     pdf = await pdfjs.getDocument({ data: buf }).promise;
   } catch (_) {
-    // Fallback sem Web Worker caso a CSP ou o browser bloqueie workers
     pdf = await pdfjs.getDocument({ data: new Uint8Array(buf), disableWorker: true }).promise;
   }
 
@@ -78,7 +73,6 @@ export async function extractLinesFromPdf(file) {
         w: Math.round(it.width || 0)
       }));
 
-    // Ordenar de cima para baixo (Y descendente) e da esquerda para a direita (X ascendente)
     items.sort((a, b) => (Math.abs(b.y - a.y) > 3 ? b.y - a.y : a.x - b.x));
 
     const rows = [];
@@ -113,14 +107,12 @@ export function guessCategory(state, desc) {
   const d = String(desc || '').toLocaleLowerCase('pt-PT');
   const avail = new Set((state.categories || []).filter(c => !c.deleted_at).map(c => c.name));
 
-  // 1. Regras aprendidas pelo utilizador têm prioridade máxima
   for (const rule of state.meta?.category_rules || []) {
     if (avail.has(rule.category) && d.includes(rule.keyword.toLocaleLowerCase('pt-PT'))) {
       return rule.category;
     }
   }
 
-  // 2. Dicionário de comerciantes portugueses
   const rules = [
     ['Supermercado', ['continente', 'pingo doce', 'lidl', 'aldi', 'auchan', 'my auchan', 'intermarche', 'intermarché', 'mercadona', 'minipreco', 'minipreço', 'meu super', 'amanhecer', 'talho', 'peixaria', 'padaria', 'froiz', 'el corte ingles', 'supercor']],
     ['Transportes', ['galp', 'repsol', 'bp ', 'cepsa', 'prio', 'via verde', 'uber', 'bolt', 'cp ', 'comboios', 'carris', 'metro', 'metropolitano', 'stcp', 'fertagus', 'transtejo', 'estacionamento', 'emel', 'parque', 'pq.', 'portagem', 'brisa']],
@@ -142,7 +134,7 @@ export function learnCategoryRule(state, description, category) {
   if (!description || !category) return;
   const clean = String(description)
     .toLocaleLowerCase('pt-PT')
-    .replace(/(compra|pagamento|pag\.?|tpa|mb\s*way|mbway|multibanco|cartao|cartão|debito|débito|transf\.?|transferencia|transferência|para|de|dd|sepa|ref\.?|ent\.?|num\.?)/gi, ' ')
+    .replace(/\b(compra|pagamento|pag\.?|tpa|mb\s*way|mbway|multibanco|cartao|cartão|debito|débito|transf\.?|transferencia|transferência|para|de|dd|sepa|ref\.?|ent\.?|num\.?)\b/gi, ' ')
     .replace(/\d+/g, ' ')
     .replace(/[^\p{L}\s-]/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -162,6 +154,7 @@ export function learnCategoryRule(state, description, category) {
     state.meta.category_rules.unshift({ keyword, category });
     if (state.meta.category_rules.length > 150) state.meta.category_rules.pop();
   }
+  state.meta.updated_at = Date.now();
 }
 
 const PT_MONTHS = {
@@ -181,7 +174,7 @@ const PT_MONTHS = {
 
 function parseLocalizedNumber(rawToken) {
   let s = String(rawToken || '')
-    .replace(/[€$£\s ]/g, '')
+    .replace(/[€$£\s\u00A0]/g, '')
     .replace(/−/g, '-');
 
   const isParenNeg = /^\(.*\)$/.test(s);
@@ -207,7 +200,6 @@ function parseLocalizedNumber(rawToken) {
 function normalizeDateToken(token, fallbackYear) {
   const clean = token.trim();
 
-  // Formato por extenso PT (ex: "20 nov. 2026" ou "20 nov 2026")
   const ptMatch = clean.match(/^(\d{1,2})\s+([a-zç]{3,9})\.?\s+(\d{4})$/i);
   if (ptMatch) {
     const d = ptMatch[1].padStart(2, '0');
@@ -242,7 +234,6 @@ function parseSingleLine(state, rawLine, detectedYear) {
   const skipLineRe = /^(saldo\s+(inicial|final|contabilístico|disponível|anterior|atual)|total\s+(de\s+)?(débitos|créditos|movimentos)|página\s+\d+|data\s+da\s+operação|data\s+mov|movimentos\s+da\s+sua\s+conta|documento\s+com\s+data|para\s+pesquisas)/i;
   if (!line || skipLineRe.test(line)) return null;
 
-  // CSV separado por ponto e vírgula
   if (line.includes(';') && !line.includes('   ')) {
     const cols = line.split(';').map(c => c.replace(/^"|"$/g, '').trim());
     const dt = normalizeDateToken(cols[0], detectedYear);
@@ -267,11 +258,10 @@ function parseSingleLine(state, rawLine, detectedYear) {
     }
   }
 
-  // Suporta data inicial numérica OU por extenso ("20 nov. 2026")
-  const dateTokenPattern = '(?:\d{4}[\/.-]\d{1,2}[\/.-]\d{1,2}|\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?|\d{1,2}\s+[a-zç]{3,9}\.?\s+\d{4})';
-  const leadingDateRe = new RegExp(`^(${dateTokenPattern})\s+(.*)$`, 'i');
-  const secondDateRe = new RegExp(`^(?:d\.\s*valor:\s*)?(${dateTokenPattern})\s+(.*)$`, 'i');
-  const amtRe = /(?:\(\s*)?[+-]?\s*(?:\d{1,3}(?:[.\s ]\d{3})+|\d+)[,.]\d{2}(?:\s*\))?(?:\s*[€$£])?/g;
+  const dateTokenPattern = '(?:\\d{4}[\\/.-]\\d{1,2}[\\/.-]\\d{1,2}|\\d{1,2}[\\/.-]\\d{1,2}(?:[\\/.-]\\d{2,4})?|\\d{1,2}\\s+[a-zç]{3,9}\\.?\\s+\\d{4})';
+  const leadingDateRe = new RegExp(`^(${dateTokenPattern})\\s+(.*)$`, 'i');
+  const secondDateRe = new RegExp(`^(?:d\\.\\s*valor:\\s*)?(${dateTokenPattern})\\s+(.*)$`, 'i');
+  const amtRe = /(?:\(\s*)?[+-]?\s*(?:\d{1,3}(?:[.\s\u00A0]\d{3})+|\d+)[,.]\d{2}(?:\s*\))?(?:\s*[€$£])?/g;
 
   const m = line.match(leadingDateRe);
   if (!m) return null;
@@ -288,7 +278,6 @@ function parseSingleLine(state, rawLine, detectedYear) {
   const amts = [...rest.matchAll(amtRe)];
   if (!amts.length) return null;
 
-  // Quando há Valor + Saldo no final da linha, escolhe o penúltimo valor (Valor do movimento)
   const chosen = amts.length >= 2 ? amts[amts.length - 2] : amts[0];
   let val = parseLocalizedNumber(chosen[0]);
   if (!Number.isFinite(val) || val === 0) return null;
@@ -299,12 +288,12 @@ function parseSingleLine(state, rawLine, detectedYear) {
   const hasExplicitSign = /[+-]|\(.*\)/.test(chosen[0]);
   if (!hasExplicitSign && val > 0) {
     const trailingDC = rest.slice(chosen.index + chosen[0].length).trim();
-    if (/^C/i.test(trailingDC)) {
+    if (/^C\b/i.test(trailingDC)) {
       val = Math.abs(val);
-    } else if (/^D/i.test(trailingDC)) {
+    } else if (/^D\b/i.test(trailingDC)) {
       val = -Math.abs(val);
     } else {
-      const isInc = /(transf\.?\s*receb|trf\.?\s*mb\s*way\s*de|ordenado|vencimento|salário|salario|reembolso|segurança\s*social|crédito|credito|depósito|deposito|abono|dividendo|juros\s*cred)/i.test(desc);
+      const isInc = /(transf\.?\s*receb|trf\.?\s*mb\s*way\s*de\b|ordenado|vencimento|salário|salario|reembolso|segurança\s*social|crédito|credito|depósito|deposito|abono|dividendo|juros\s*cred)/i.test(desc);
       if (!isInc) val = -val;
     }
   }
@@ -325,7 +314,7 @@ function parseSingleLine(state, rawLine, detectedYear) {
 export function parseStatementLines(state, lines) {
   let detectedYear = String(new Date().getFullYear());
   for (const line of lines.slice(0, 35)) {
-    const ym = line.match(/(202[0-9])/);
+    const ym = line.match(/\b(202[0-9])\b/);
     if (ym) {
       detectedYear = ym[1];
       break;
@@ -338,14 +327,11 @@ export function parseStatementLines(state, lines) {
     const line = String(rawLine || '').trim();
     if (!line) continue;
 
-    // Caso especial: PDFs onde duas transações na mesma linha Y ficaram coladas horizontalmente
-    // Ex: "09 nov. 2026 D. valor: 09 nov. 2026 09 nov. 2026 D. valor: 09 nov. 2026 Desc1 Desc2 -4,00€ 4,25€ 276,21€ 280,21€"
     const gluedSantander = line.match(
       /^(\d{1,2}\s+[a-zç]{3,9}\.?\s+\d{4})\s+D\.\s*valor:\s*(\d{1,2}\s+[a-zç]{3,9}\.?\s+\d{4})\s+(\d{1,2}\s+[a-zç]{3,9}\.?\s+\d{4})\s+D\.\s*valor:\s*(\d{1,2}\s+[a-zç]{3,9}\.?\s+\d{4})\s+(.+?)\s+([+-]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}€)\s+([+-]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}€)\s+([+-]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}€)\s+([+-]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}€)$/i
     );
     if (gluedSantander) {
       const [, d1, dv1, d2, dv2, bothDescs, v1, v2, s1, s2] = gluedSantander;
-      // Tentar separar descrições coladas pelos prefixos típicos bancários
       const splitDesc = bothDescs.match(/^(.+?)\s+((?:Trf\.|Transferência|Pagamento|Compra|Levantamento|Ordenado|Comissão|Imposto|Via Verde|Pingo Doce|Mercadona|Continente|Lidl|Repsol|Galp).*)$/i);
       const desc1 = splitDesc ? splitDesc[1] : bothDescs;
       const desc2 = splitDesc ? splitDesc[2] : 'Movimento bancário';

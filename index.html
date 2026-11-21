@@ -14,39 +14,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css">
-  <style>
-    /* Ajuste da barra de separadores no Desktop (Opção A) */
-    @media (min-width: 680px) {
-      .wrap {
-        max-width: 1080px;
-      }
-
-      #navWrapper.nav-wrapper {
-        overflow: visible;
-        padding-left: 0;
-        padding-right: 0;
-      }
-
-      #mainNav {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-wrap: wrap;
-        overflow-x: visible;
-        gap: 6px;
-        width: 100%;
-      }
-
-      #mainNav > button:not(.mobile-more-btn) {
-        padding: 7px 12px;
-        font-size: 13px;
-        white-space: nowrap;
-        flex-shrink: 0;
-        gap: 5px;
-      }
-    }
-  </style>
-  <title>DuoFin v2.1.0 — Gestão financeira a dois</title>
+  <title>DuoFin v2.2.0 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
@@ -55,7 +23,7 @@
       <div class="brandmark" style="margin:0 auto 12px;width:48px;height:48px;font-size:18px" aria-hidden="true">DF</div>
       <h2 id="appLockTitle" style="margin:0 0 4px">DuoFin bloqueada</h2>
       <p class="small" id="appLockSubtitle" style="margin:0 0 14px">Introduz o PIN de segurança para aceder aos dados financeiros.</p>
-      <input type="password" id="appLockPinInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="PIN (4 a 6 dígitos)" aria-label="PIN de desbloqueio" style="text-align:center;font-size:20px;letter-spacing:6px;max-width:210px;margin:0 auto 10px;display:block">
+      <input type="password" id="appLockPinInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" enterkeyhint="done" autocomplete="off" placeholder="PIN (4 a 6 dígitos)" aria-label="PIN de desbloqueio" style="text-align:center;font-size:20px;letter-spacing:6px;max-width:210px;margin:0 auto 10px;display:block">
       <div id="appLockError" class="small" style="color:var(--red);min-height:18px;margin-bottom:8px;font-weight:600"></div>
       <div class="actions" style="justify-content:center;margin-top:4px">
         <button type="button" class="primary" id="appLockUnlockBtn">Desbloquear</button>
@@ -829,7 +797,18 @@
           <label for="modalEditDesc">Descrição completa</label>
           <textarea id="modalEditDesc" rows="2" required></textarea>
           <div class="grid">
-            <div><label for="modalEditAmount">Valor (€)</label><input id="modalEditAmount" type="text" inputmode="decimal" required></div>
+            <div>
+              <label for="modalEditAmount">Valor (€)</label>
+              <div class="calc-input-wrap">
+                <input id="modalEditAmount" type="text" inputmode="decimal" required>
+                <div class="calc-ops" aria-label="Operadores rápidos">
+                  <button type="button" class="calc-op-btn" data-calc-op="+" data-calc-target="modalEditAmount">+</button>
+                  <button type="button" class="calc-op-btn" data-calc-op="-" data-calc-target="modalEditAmount">−</button>
+                  <button type="button" class="calc-op-btn" data-calc-op="*" data-calc-target="modalEditAmount">×</button>
+                  <button type="button" class="calc-op-btn calc-eq-btn" id="modalCalcEvalBtn" title="Calcular expressão">=</button>
+                </div>
+              </div>
+            </div>
             <div id="modalEditCatWrap">
               <label for="modalEditCat">Categoria</label>
               <select id="modalEditCat"></select>
@@ -864,7 +843,7 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.1.0 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.2.0 · Gestão financeira a dois</footer>
   </div>
   <script type="module" src="./js/app.js"></script>
 </body>
