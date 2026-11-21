@@ -536,3 +536,17 @@ body.privacy-masked .day-sum-pill b {
   filter: blur(6px);
   user-select: none;
 }
+
+/* --- Indicador de despesas a crédito no cartão Saldo do ciclo --- */
+.cc-spent-sub {
+  font-size: 12px;
+  color: var(--amber);
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+body.privacy-masked .cc-spent-sub strong {
+  filter: blur(6px);
+  user-select: none;
+}

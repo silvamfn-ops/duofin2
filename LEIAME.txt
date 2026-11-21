@@ -1,4 +1,4 @@
-INSTRUÇÕES DE INSTALAÇÃO (DuoFin 2 v2.4.1)
+INSTRUÇÕES DE INSTALAÇÃO (DuoFin 2 v2.4.2)
 
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
 - index.html               -> Raiz do projeto

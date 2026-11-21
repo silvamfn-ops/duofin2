@@ -205,13 +205,25 @@ function render() {
   const inc = tx.filter(t => t.type === 'income' && isPaid(t));
   const svIn = tx.filter(t => t.type === 'saving' && isPaid(t));
   const svOut = tx.filter(t => t.type === 'saving_withdraw' && isPaid(t));
-  const bal = computeCycleBalance(state, cycle, today);
+  const ccExpItems = ex.filter(t => t.credit_card_id);
+  const ccExpTotal = sum(ccExpItems);
+  const bal = computeCycleBalance(state, cycle, today) + ccExpTotal;
 
   $('inc').textContent = eur(sum(inc));
   $('exp').textContent = eur(sum(ex));
   $('bal').textContent = eur(bal);
   $('bal').className = bal < 0 ? 'minus' : '';
   $('savm').textContent = eur(sum(svIn) - sum(svOut));
+
+  if ($('ccSpentLine')) {
+    if (ccExpTotal > 0) {
+      $('ccSpentLine').hidden = false;
+      $('ccSpentLine').innerHTML = `💳 A crédito no ciclo: <strong>${eur(ccExpTotal)}</strong>`;
+    } else {
+      $('ccSpentLine').hidden = true;
+      $('ccSpentLine').innerHTML = '';
+    }
+  }
 
   const totalBudget = (state.categories || []).filter(c => !c.deleted_at).reduce((a, c) => a + (Number(c.budget) || 0), 0);
   if ($('basicCycleProgressWrap')) {
