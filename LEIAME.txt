@@ -1,14 +1,14 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.3)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.4)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (Campos de edição no formulário de cartões de crédito + v2.6.3)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.3)
+- index.html               -> Raiz do projeto (v2.6.4)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.4)
 - css/styles.css           -> Pasta css/ (Estilos da aplicação)
-- js/config.js             -> Pasta js/ (Versão v2.6.3)
+- js/config.js             -> Pasta js/ (Versão v2.6.4)
 - js/finance-engine.js     -> Pasta js/ (Motor financeiro)
 - js/supabase-sync.js      -> Pasta js/ (Sincronização cloud)
-- js/app.js                -> Pasta js/ (Edição de nome, plafond, dívida inicial e titular dos cartões de crédito)
+- js/app.js                -> Pasta js/ (Carregamento direto e pré-seleção dos cartões de crédito ao editar/registar pagamentos de cartão)
 
 2. SUPABASE (APENAS SE AINDA NÃO EXECUTASTE NA v2.6.0):
 Se ainda não executaste o script SQL no SQL Editor do Supabase, executa o ficheiro:

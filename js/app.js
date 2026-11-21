@@ -404,13 +404,7 @@ function render() {
   if ($('simCategory')) $('simCategory').innerHTML = catsHtml;
   $('filterCategory').innerHTML = '<option value="all">Todas as categorias</option>' + catsHtml;
 
-  const cards = (state.credit_cards || []).filter(c => !c.deleted_at);
-  $('paymentMethod').innerHTML =
-    '<option value="bank">Conta à ordem / Débito / Dinheiro</option>' +
-    cards.map(c => `<option value="cc:${esc(c.id)}">💳 ${esc(c.name)} (dívida: ${eur(computeCreditCardDebt(state, c))})</option>`).join('');
-  $('ccPaymentCard').innerHTML =
-    '<option value="">Selecionar cartão…</option>' +
-    cards.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  populateCreditCardSelects();
 
   $('savingGoal').innerHTML =
     '<option value="">Sem objetivo</option>' + activeGoals.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
@@ -796,6 +790,45 @@ function openTxDetailModal(txId) {
   $('txDetailModal').hidden = false;
 }
 
+function populateCreditCardSelects(selectedCardId = null) {
+  const cards = (state.credit_cards || []).filter(c => !c.deleted_at);
+  const methodHtml =
+    '<option value="bank">Conta à ordem / Débito / Dinheiro</option>' +
+    cards.map(c => `<option value="cc:${esc(c.id)}">💳 ${esc(c.name)} (dívida: ${eur(computeCreditCardDebt(state, c))})</option>`).join('');
+  const paymentHtml =
+    '<option value="">Selecionar cartão…</option>' +
+    cards.map(c => `<option value="${esc(c.id)}">💳 ${esc(c.name)} (dívida: ${eur(computeCreditCardDebt(state, c))})</option>`).join('');
+
+  if ($('paymentMethod')) {
+    const prev = $('paymentMethod').value;
+    $('paymentMethod').innerHTML = methodHtml;
+    if (prev && Array.from($('paymentMethod').options).some(o => o.value === prev)) {
+      $('paymentMethod').value = prev;
+    }
+  }
+  if ($('ccPaymentCard')) {
+    const prev = $('ccPaymentCard').value;
+    $('ccPaymentCard').innerHTML = paymentHtml;
+    if (prev && Array.from($('ccPaymentCard').options).some(o => o.value === prev)) {
+      $('ccPaymentCard').value = prev;
+    } else if (cards.length === 1) {
+      $('ccPaymentCard').value = String(cards[0].id);
+    }
+  }
+  if ($('modalEditPaymentMethod')) {
+    $('modalEditPaymentMethod').innerHTML = methodHtml;
+    $('modalEditPaymentMethod').value = selectedCardId ? `cc:${selectedCardId}` : 'bank';
+  }
+  if ($('modalEditCcPaymentCard')) {
+    const prevModal = $('modalEditCcPaymentCard').value;
+    $('modalEditCcPaymentCard').innerHTML = paymentHtml;
+    const targetVal = selectedCardId || prevModal || (cards.length === 1 ? String(cards[0].id) : '');
+    if (targetVal && Array.from($('modalEditCcPaymentCard').options).some(o => String(o.value) === String(targetVal))) {
+      $('modalEditCcPaymentCard').value = String(targetVal);
+    }
+  }
+}
+
 function switchModalToEdit() {
   const tx = state.transactions.find(t => String(t.id) === String($('modalTxId').value));
   if (!tx) return;
@@ -822,10 +855,7 @@ function switchModalToEdit() {
     }
   }
 
-  $('modalEditPaymentMethod').innerHTML = $('paymentMethod').innerHTML;
-  $('modalEditPaymentMethod').value = tx.credit_card_id ? `cc:${tx.credit_card_id}` : 'bank';
-  $('modalEditCcPaymentCard').innerHTML = $('ccPaymentCard').innerHTML;
-  $('modalEditCcPaymentCard').value = tx.credit_card_id || '';
+  populateCreditCardSelects(tx.credit_card_id || null);
   $('modalEditGoal').innerHTML = $('savingGoal').innerHTML;
   $('modalEditGoal').value = tx.goal_id || '';
 
@@ -834,6 +864,12 @@ function switchModalToEdit() {
 
 function updateModalEditVisibility() {
   const tp = $('modalEditType').value;
+  if (tp === 'cc_payment' || tp === 'expense') {
+    const curVal = tp === 'cc_payment'
+      ? $('modalEditCcPaymentCard').value
+      : ($('modalEditPaymentMethod').value.startsWith('cc:') ? $('modalEditPaymentMethod').value.slice(3) : null);
+    populateCreditCardSelects(curVal || null);
+  }
   $('modalEditCatWrap').hidden = tp !== 'expense';
   $('modalEditPaymentMethodWrap').hidden = tp !== 'expense';
   $('modalEditCcPaymentWrap').hidden = tp !== 'cc_payment';
@@ -1203,6 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('type').onchange = () => {
     const tp = $('type').value;
+    if (tp === 'cc_payment' || tp === 'expense') populateCreditCardSelects();
     $('categoryField').hidden = tp !== 'expense';
     $('installmentsField').hidden = tp !== 'expense';
     $('expensePaymentMethodField').hidden = tp !== 'expense';
