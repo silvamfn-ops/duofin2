@@ -391,6 +391,7 @@ function render() {
   renderFilteredTransactions(cycles);
   renderQuickTemplates();
 
+  const people = getPeopleList(state);
   const peopleHtml = people.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
   $('person').innerHTML = peopleHtml;
   if ($('ccOwner')) $('ccOwner').innerHTML = peopleHtml;
