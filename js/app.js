@@ -22,6 +22,7 @@ import { drawSavingsChart, drawAnalyticsChart } from './charts.js';
 let state = loadLocalState();
 let selectedCycleKey = null;
 let movementCycleKey = null;
+let encargosCycleKey = null;
 let quickStatusFilter = 'all';
 let calendarMonthStr = currentMonth();
 let selectedCalendarDay = iso();
@@ -35,7 +36,6 @@ if (security.hasPin()) security.lock();
 const sync = new DuoFinSync(
   () => state,
   () => {
-    materializeRecurringTransactions();
     render();
   },
   (status, msg) => {
@@ -103,42 +103,6 @@ function switchTab(tabId) {
   if (tabId === 'resumo') requestAnimationFrame(() => drawSavingsChart(state));
   if (tabId === 'graficos') updateAnalyticsView();
   if (tabId === 'calendario') renderCalendar();
-}
-
-function materializeRecurringTransactions() {
-  const curM = currentMonth();
-  let changed = false;
-  for (const r of state.recurring_expenses || []) {
-    if (r.deleted_at || r.active === false) continue;
-    if (!r.start_month || r.start_month > curM) continue;
-    if (r.end_month && r.end_month < curM) continue;
-
-    const occKey = `${r.id}:${curM}`;
-    const exists = state.transactions.some(t => !t.deleted_at && t.occurrence_key === occKey);
-    if (!exists) {
-      const [y, m] = curM.split('-').map(Number);
-      const maxD = new Date(y, m, 0).getDate();
-      const day = Math.min(Number(r.day_of_month) || 1, maxD);
-      const tx = {
-        id: uid('rec-tx'),
-        date: `${curM}-${String(day).padStart(2, '0')}`,
-        type: 'expense',
-        description: r.description,
-        amount: Number(r.amount) || 0,
-        category: r.category,
-        person: r.person || 'Conta conjunta',
-        status: 'pending',
-        recurrence_id: r.id,
-        occurrence_key: occKey,
-        counts_for_cycle: true,
-        updated_at: Date.now()
-      };
-      state.transactions.push(tx);
-      enqueueOutbox('transactions', tx);
-      changed = true;
-    }
-  }
-  if (changed) saveLocalState(state);
 }
 
 function render() {
@@ -478,7 +442,7 @@ function renderTxRow(t) {
   const cls = t.type === 'income' ? 'plus' : t.type === 'saving_withdraw' || t.type === 'cc_payment' || t.type === 'transfer' ? 'neutral' : 'minus';
   const sign = t.type === 'income' ? '+' : t.type === 'saving' ? '↗' : t.type === 'saving_withdraw' ? '↙' : t.type === 'cc_payment' || t.type === 'transfer' ? '⇄' : '−';
   const ccTag = t.credit_card_id ? ' · 💳 Cartão' : '';
-  const statusTag = isProj ? ' · 🔮 Previsto (recorrente)' : t.status === 'pending' ? ' · ⏳ Pendente' : t.status === 'skipped' ? ' · 🚫 Ignorado' : '';
+  const statusTag = isProj ? ' · 📋 Caderno de encargos' : t.status === 'pending' ? ' · ⏳ Pendente' : t.status === 'skipped' ? ' · 🚫 Ignorado' : '';
   const clickAttr = isProj ? '' : `data-open-tx="${esc(t.id)}"`;
   const rowCls = isProj ? 'item row tx-row-projected' : 'item row tx-clickable';
   return `<div class="${rowCls}" ${clickAttr}>
@@ -535,33 +499,145 @@ function renderQuickTemplates() {
   $('quickTemplatesList')._items = top;
 }
 
+function getSuggestedEncargoDate(cycle, dayOfMonth) {
+  const day = Math.min(31, Math.max(1, Number(dayOfMonth) || 1));
+  if (!cycle || !cycle.start || !cycle.end) {
+    const curM = currentMonth();
+    const [y, m] = curM.split('-').map(Number);
+    const maxD = new Date(y, m, 0).getDate();
+    return `${curM}-${String(Math.min(day, maxD)).padStart(2, '0')}`;
+  }
+  const [sy, sm] = cycle.start.split('-').map(Number);
+  const sMaxD = new Date(sy, sm, 0).getDate();
+  const cand1 = `${cycle.start.slice(0, 7)}-${String(Math.min(day, sMaxD)).padStart(2, '0')}`;
+  if (cand1 >= cycle.start && cand1 <= cycle.end) return cand1;
+
+  const [ey, em] = cycle.end.split('-').map(Number);
+  const eMaxD = new Date(ey, em, 0).getDate();
+  const cand2 = `${cycle.end.slice(0, 7)}-${String(Math.min(day, eMaxD)).padStart(2, '0')}`;
+  if (cand2 >= cycle.start && cand2 <= cycle.end) return cand2;
+
+  return cycle.start;
+}
+
 function renderRecurringSection() {
-  const rules = (state.recurring_expenses || []).filter(r => !r.deleted_at);
+  const cycles = buildCycles(state);
+  const activeCycle = cycles.find(c => c.key === encargosCycleKey) || cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+  if (activeCycle) encargosCycleKey = activeCycle.key;
+
+  const cycleSel = $('encargosCycleSelect');
+  if (cycleSel && activeCycle) {
+    cycleSel.innerHTML = cycles
+      .slice()
+      .reverse()
+      .map(c => `<option value="${esc(c.key)}">${esc(c.monthLabel)} (${fmtDate(c.start)} – ${fmtDate(c.end)})</option>`)
+      .join('');
+    cycleSel.value = activeCycle.key;
+  }
+
+  const rules = (state.recurring_expenses || []).filter(r => !r.deleted_at && r.active !== false);
+  const cycleKey = activeCycle ? activeCycle.key : currentMonth();
+
+  let paidCount = 0;
+  let totalPaid = 0;
+  let totalExpected = 0;
+
+  const checklistEl = $('encargosChecklist');
+  if (checklistEl) {
+    if (!rules.length) {
+      checklistEl.innerHTML = '<div class="empty">Ainda não tens fornecedores ou serviços no caderno de encargos. Adiciona o primeiro abaixo (ex.: Luz, Água, Telecomunicações).</div>';
+    } else {
+      checklistEl.innerHTML = rules
+        .map(r => {
+          const cpMap = r.cycle_payments && typeof r.cycle_payments === 'object' ? r.cycle_payments : {};
+          const entry = cpMap[cycleKey] || {};
+          const isDone = !!entry.paid;
+          const amountVal = entry.amount !== undefined && entry.amount !== null && entry.amount !== ''
+            ? Number(entry.amount)
+            : (Number(r.amount) || 0);
+          const dateVal = entry.paidDate || getSuggestedEncargoDate(activeCycle, r.day_of_month);
+
+          totalExpected += amountVal;
+          if (isDone) {
+            paidCount++;
+            totalPaid += amountVal;
+          }
+
+          const entityHtml = r.entity
+            ? `<button type="button" class="mb-copy-chip" data-copy-mb="${esc(r.entity)}" title="Copiar Entidade">Entidade: <b>${esc(r.entity)}</b> 📋</button>`
+            : '';
+          const refHtml = r.payment_ref
+            ? `<button type="button" class="mb-copy-chip" data-copy-mb="${esc(r.payment_ref)}" title="Copiar Referência">Ref.: <b>${esc(r.payment_ref)}</b> 📋</button>`
+            : '';
+
+          return `<div class="encargo-card ${isDone ? 'is-paid' : ''}" data-encargo-id="${esc(r.id)}">
+            <div class="encargo-header">
+              <div style="min-width:0;flex:1">
+                <b>${esc(r.description)}</b>
+                <div class="small">${esc(r.category)} · ${esc(r.person)} · Dia habitual: ${r.day_of_month}</div>
+              </div>
+              <span class="pill">${isDone ? '✅ Pago' : '⏳ Por pagar'}</span>
+            </div>
+            ${entityHtml || refHtml ? `<div class="encargo-mb-row">${entityHtml}${refHtml}</div>` : ''}
+            <div class="encargo-controls">
+              <div>
+                <div class="small" style="margin-bottom:2px">Valor (€)</div>
+                <input type="number" step="0.01" min="0" data-encargo-amount="${esc(r.id)}" value="${amountVal > 0 ? amountVal.toFixed(2) : ''}" placeholder="0,00">
+              </div>
+              <div>
+                <div class="small" style="margin-bottom:2px">Data pagamento</div>
+                <input type="date" data-encargo-date="${esc(r.id)}" value="${esc(dateVal)}">
+              </div>
+              <label class="encargo-paid-toggle">
+                <input type="checkbox" data-encargo-paid="${esc(r.id)}" ${isDone ? 'checked' : ''}>
+                <span>Pago</span>
+              </label>
+            </div>
+          </div>`;
+        })
+        .join('');
+    }
+  }
+
+  const unpaidCount = Math.max(0, rules.length - paidCount);
+  if ($('encargosProgressBadge')) {
+    $('encargosProgressBadge').textContent = `${paidCount} / ${rules.length} pagos`;
+  }
+  if ($('encargosCycleTotals')) {
+    $('encargosCycleTotals').textContent = `${eur(totalPaid)} pago / ${eur(totalExpected)} total`;
+  }
+  if ($('encargosSuppliersCount')) {
+    $('encargosSuppliersCount').textContent = `${rules.length} serviço(s)`;
+  }
+
   $('recurrenceRules').innerHTML = rules.length
     ? rules
-        .map(
-          r =>
-            `<div class="item row"><div><b>${esc(r.description)}</b><div class="small">Dia ${r.day_of_month} · ${esc(r.category)} · ${esc(r.person)}</div></div><div class="row" style="gap:6px"><b>${eur(r.amount)}</b><button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-rec="${esc(r.id)}">✎</button><button type="button" class="danger" data-del-rec="${esc(r.id)}">×</button></div></div>`
-        )
+        .map(r => {
+          const mbSummary = [
+            r.entity ? `Ent.: ${esc(r.entity)}` : '',
+            r.payment_ref ? `Ref.: ${esc(r.payment_ref)}` : '',
+            Number(r.amount) > 0 ? `Habitual: ${eur(r.amount)}` : ''
+          ].filter(Boolean).join(' · ');
+          return `<div class="item row">
+            <div style="min-width:0;flex:1">
+              <b>${esc(r.description)}</b>
+              <div class="small">${esc(r.category)} · Dia ${r.day_of_month} · ${esc(r.person)}</div>
+              ${mbSummary ? `<div class="small" style="margin-top:2px;font-family:ui-monospace,monospace">${mbSummary}</div>` : ''}
+            </div>
+            <div class="row" style="gap:6px">
+              <button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-rec="${esc(r.id)}">✎</button>
+              <button type="button" class="danger" data-del-rec="${esc(r.id)}">×</button>
+            </div>
+          </div>`;
+        })
         .join('')
-    : '<div class="empty">Sem despesas recorrentes configuradas.</div>';
+    : '<div class="empty">Sem fornecedores configurados no caderno de encargos.</div>';
 
-  const pending = state.transactions.filter(t => !t.deleted_at && t.status === 'pending');
-  $('pendingRecurring').innerHTML = pending.length
-    ? pending
-        .map(
-          t =>
-            `<div class="item row"><div><b>${esc(t.description)}</b><div class="small">${fmtDate(t.date)} · ${eur(t.amount)}</div></div><div class="row" style="gap:6px"><button type="button" class="primary" style="padding:6px 10px;font-size:12px" data-confirm-pending="${esc(t.id)}">Confirmar</button><button type="button" class="ghost" style="padding:6px 10px;font-size:12px" data-skip-pending="${esc(t.id)}">Ignorar</button></div></div>`
-        )
-        .join('')
-    : '<div class="empty">Nenhuma despesa pendente de confirmação.</div>';
-
-  const badgeCount = pending.length;
   ['mobileMoreBadge', 'drawerRecBadge', 'desktopRecBadge'].forEach(id => {
     const el = $(id);
     if (!el) return;
-    el.hidden = badgeCount === 0;
-    el.textContent = badgeCount;
+    el.hidden = unpaidCount === 0;
+    el.textContent = unpaidCount;
   });
 }
 
@@ -816,7 +892,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   $('date').value = iso();
-  if ($('recurrenceStart')) $('recurrenceStart').value = currentMonth();
   const cfg = sync.getConfig();
   $('sbUrl').value = cfg.url || '';
   $('sbKey').value = cfg.anonKey || '';
@@ -1251,19 +1326,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const copyMbBtn = e.target.closest('[data-copy-mb]');
+    if (copyMbBtn) {
+      const val = copyMbBtn.dataset.copyMb;
+      if (val && navigator.clipboard) {
+        navigator.clipboard.writeText(val).then(() => {
+          showToast(`Copiado: ${val}`, { type: 'success' });
+        }).catch(() => {});
+      }
+      return;
+    }
+
     const editRec = e.target.closest('[data-edit-rec]');
     if (editRec) {
       const r = state.recurring_expenses.find(x => String(x.id) === String(editRec.dataset.editRec));
       if (r) {
         $('recurrenceId').value = r.id;
         $('recurrenceDescription').value = r.description;
-        $('recurrenceAmount').value = r.amount;
         $('recurrenceCategory').value = r.category;
+        if ($('recurrenceEntity')) $('recurrenceEntity').value = r.entity || '';
+        if ($('recurrenceRef')) $('recurrenceRef').value = r.payment_ref || '';
+        $('recurrenceAmount').value = Number(r.amount) > 0 ? r.amount : '';
         $('recurrencePerson').value = r.person;
         $('recurrenceDay').value = r.day_of_month;
-        $('recurrenceStart').value = r.start_month;
-        $('recurrenceEnd').value = r.end_month || '';
-        $('recurrenceFormTitle').textContent = 'Editar despesa recorrente';
+        $('recurrenceFormTitle').textContent = 'Editar fornecedor / serviço';
         $('recurrenceSave').textContent = 'Guardar alterações';
         $('recurrenceCancel').hidden = false;
         $('recurrenceDescription').focus();
@@ -1383,12 +1469,70 @@ document.addEventListener('DOMContentLoaded', () => {
     $(id).onchange = updateAnalyticsView;
   });
 
+  if ($('encargosCycleSelect')) {
+    $('encargosCycleSelect').onchange = e => {
+      encargosCycleKey = e.target.value;
+      renderRecurringSection();
+    };
+  }
+
+  function updateEncargoCycleEntry(recId, patch) {
+    const rule = (state.recurring_expenses || []).find(r => String(r.id) === String(recId));
+    if (!rule) return;
+    const cycles = buildCycles(state);
+    const activeCycle = cycles.find(c => c.key === encargosCycleKey) || currentCycle(cycles);
+    const cKey = activeCycle ? activeCycle.key : currentMonth();
+
+    rule.cycle_payments = rule.cycle_payments && typeof rule.cycle_payments === 'object' ? rule.cycle_payments : {};
+    const prev = rule.cycle_payments[cKey] || {
+      amount: Number(rule.amount) || 0,
+      paidDate: getSuggestedEncargoDate(activeCycle, rule.day_of_month),
+      paid: false
+    };
+    rule.cycle_payments[cKey] = { ...prev, ...patch };
+    mutate('recurring_expenses', rule);
+  }
+
+  if ($('encargosChecklist')) {
+    $('encargosChecklist').addEventListener('change', e => {
+      const paidCb = e.target.closest('[data-encargo-paid]');
+      if (paidCb) {
+        const id = paidCb.dataset.encargoPaid;
+        const card = paidCb.closest('.encargo-card');
+        const amtInp = card?.querySelector('[data-encargo-amount]');
+        const dateInp = card?.querySelector('[data-encargo-date]');
+        const isPaidNow = paidCb.checked;
+        const paidDateVal = dateInp?.value || iso();
+        updateEncargoCycleEntry(id, {
+          paid: isPaidNow,
+          amount: amtInp && amtInp.value !== '' ? Number(amtInp.value) : 0,
+          paidDate: paidDateVal
+        });
+        haptic(14);
+        showToast(isPaidNow ? 'Marcado como pago no caderno!' : 'Marcado como por pagar.', { type: isPaidNow ? 'success' : 'info' });
+        return;
+      }
+
+      const amtInp = e.target.closest('[data-encargo-amount]');
+      if (amtInp) {
+        const id = amtInp.dataset.encargoAmount;
+        updateEncargoCycleEntry(id, { amount: amtInp.value !== '' ? Number(amtInp.value) : 0 });
+        return;
+      }
+
+      const dateInp = e.target.closest('[data-encargo-date]');
+      if (dateInp) {
+        const id = dateInp.dataset.encargoDate;
+        updateEncargoCycleEntry(id, { paidDate: dateInp.value });
+      }
+    });
+  }
+
   $('recurrenceCancel').onclick = () => {
     $('recurrenceId').value = '';
     $('recurrenceForm').reset();
-    $('recurrenceStart').value = currentMonth();
-    $('recurrenceFormTitle').textContent = 'Nova despesa recorrente';
-    $('recurrenceSave').textContent = 'Guardar recorrência';
+    $('recurrenceFormTitle').textContent = 'Novo fornecedor / serviço fixo';
+    $('recurrenceSave').textContent = 'Guardar no caderno';
     $('recurrenceCancel').hidden = true;
   };
 
@@ -1399,14 +1543,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const rule = state.recurring_expenses.find(r => String(r.id) === String(editId));
       if (rule) {
         rule.description = $('recurrenceDescription').value.trim();
-        rule.amount = Number($('recurrenceAmount').value);
         rule.category = $('recurrenceCategory').value;
+        rule.entity = $('recurrenceEntity') ? $('recurrenceEntity').value.trim() : '';
+        rule.payment_ref = $('recurrenceRef') ? $('recurrenceRef').value.trim() : '';
+        rule.amount = Number($('recurrenceAmount').value) || 0;
         rule.person = $('recurrencePerson').value;
-        rule.day_of_month = Number($('recurrenceDay').value);
-        rule.start_month = $('recurrenceStart').value;
-        rule.end_month = $('recurrenceEnd').value || null;
+        rule.day_of_month = Number($('recurrenceDay').value) || 1;
         mutate('recurring_expenses', rule);
-        showToast('Regra recorrente atualizada!', { type: 'success' });
+        showToast('Fornecedor atualizado no caderno!', { type: 'success' });
       }
       $('recurrenceCancel').click();
       return;
@@ -1415,23 +1559,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const rule = {
       id: uid('rec'),
       description: $('recurrenceDescription').value.trim(),
-      amount: Number($('recurrenceAmount').value),
       category: $('recurrenceCategory').value,
+      entity: $('recurrenceEntity') ? $('recurrenceEntity').value.trim() : '',
+      payment_ref: $('recurrenceRef') ? $('recurrenceRef').value.trim() : '',
+      amount: Number($('recurrenceAmount').value) || 0,
       person: $('recurrencePerson').value,
-      day_of_month: Number($('recurrenceDay').value),
-      start_month: $('recurrenceStart').value,
-      end_month: $('recurrenceEnd').value || null,
+      day_of_month: Number($('recurrenceDay').value) || 1,
+      start_month: currentMonth(),
+      end_month: null,
       active: true,
+      cycle_payments: {},
       updated_at: Date.now()
     };
     state.recurring_expenses.push(rule);
-    enqueueOutbox('recurring_expenses', rule);
-    materializeRecurringTransactions();
+    mutate('recurring_expenses', rule);
     $('recurrenceForm').reset();
-    $('recurrenceStart').value = currentMonth();
-    render();
-    sync.flushOutbox();
-    showToast('Regra recorrente criada!', { type: 'success' });
+    showToast('Serviço adicionado ao caderno de encargos!', { type: 'success' });
   };
 
   $('prevCalMonth').onclick = () => {
@@ -2089,7 +2232,6 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  materializeRecurringTransactions();
   render();
   initStorageProtectionAndBackupReminder();
   sync.connectAndSubscribe();

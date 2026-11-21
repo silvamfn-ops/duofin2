@@ -9,7 +9,7 @@ const TABLE_COLUMNS = {
   categories: ['id', 'household_id', 'name', 'budget', 'locked', 'sort_order', 'updated_at', 'deleted_at'],
   credit_cards: ['id', 'household_id', 'name', 'card_limit', 'initial_debt', 'owner', 'updated_at', 'deleted_at'],
   savings_goals: ['id', 'household_id', 'name', 'target', 'deadline', 'status', 'updated_at', 'deleted_at'],
-  recurring_expenses: ['id', 'household_id', 'description', 'amount', 'category', 'person', 'day_of_month', 'start_month', 'end_month', 'active', 'updated_at', 'deleted_at'],
+  recurring_expenses: ['id', 'household_id', 'description', 'amount', 'category', 'person', 'day_of_month', 'start_month', 'end_month', 'active', 'entity', 'payment_ref', 'cycle_payments', 'updated_at', 'deleted_at'],
   transactions: ['id', 'household_id', 'date', 'type', 'description', 'amount', 'category', 'person', 'status', 'credit_card_id', 'goal_id', 'recurrence_id', 'occurrence_key', 'installment_group_id', 'counts_for_cycle', 'updated_at', 'deleted_at']
 };
 

@@ -207,19 +207,19 @@ export function getProjectedCalendarEvents(state, yearMonth) {
 
   for (const r of state.recurring_expenses || []) {
     if (r.deleted_at || r.active === false) continue;
-    if (!r.start_month || r.start_month > yearMonth) continue;
+    if (r.start_month && r.start_month > yearMonth) continue;
     if (r.end_month && r.end_month < yearMonth) continue;
-
-    const occKey = `${r.id}:${yearMonth}`;
-    const alreadyExists = state.transactions.some(t => !t.deleted_at && t.occurrence_key === occKey);
-    if (alreadyExists) continue;
 
     const day = Math.min(Math.max(1, Number(r.day_of_month) || 1), daysInMonth);
     const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
     if (dateStr < today && yearMonth < currentMonth()) continue;
 
+    const cp = r.cycle_payments || {};
+    const alreadyPaidInMonth = Object.values(cp).some(entry => entry && entry.paid && String(entry.paidDate || '').startsWith(yearMonth));
+    if (alreadyPaidInMonth) continue;
+
     events.push({
-      id: `proj-${occKey}`,
+      id: `proj-${r.id}-${yearMonth}`,
       date: dateStr,
       type: 'expense',
       description: r.description,
@@ -227,7 +227,7 @@ export function getProjectedCalendarEvents(state, yearMonth) {
       category: r.category,
       person: r.person || 'Conta conjunta',
       isProjected: true,
-      projSource: 'Recorrente prevista'
+      projSource: 'Caderno de encargos'
     });
   }
   return events;

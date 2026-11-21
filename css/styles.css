@@ -627,3 +627,88 @@ body.privacy-masked .cc-spent-sub strong {
   border-color: var(--accent);
   background: var(--surface);
 }
+
+
+/* --- v2.6.0: Caderno de Encargos (Fornecedores, Entidade/Referência e Checklist por Ciclo) --- */
+.encargo-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.encargo-card.is-paid {
+  background: var(--surface-2);
+  border-color: var(--good, #16a34a);
+}
+.encargo-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.encargo-mb-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mb-copy-chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mb-copy-chip:hover {
+  border-color: var(--accent);
+}
+.encargo-controls {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+@media (max-width: 520px) {
+  .encargo-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+  .encargo-paid-toggle {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+.encargo-controls input {
+  padding: 6px 8px;
+  font-size: 13px;
+  margin: 0;
+}
+.encargo-paid-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  margin: 0;
+}
+.encargo-card.is-paid .encargo-paid-toggle {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: var(--good, #16a34a);
+  color: var(--good, #166534);
+}

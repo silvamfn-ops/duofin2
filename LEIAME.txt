@@ -1,11 +1,15 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.5.0)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.0 — Caderno de Encargos)
 
+1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (Interface v2.5.0, modais de acerto de saldo, regras e prestações)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.5.0)
-- css/styles.css           -> Pasta css/ (Estilos para acerto de saldo, equilíbrio do casal, previsão a tracejado e ordenação)
-- js/config.js             -> Pasta js/ (Versão v2.5.0)
-- js/finance-engine.js     -> Pasta js/ (Previsão de recorrências e prestações no calendário)
-- js/app.js                -> Pasta js/ (Lógica completa das 6 melhorias v2.5.0)
+- index.html               -> Raiz do projeto (Novo separador Caderno de Encargos + v2.6.0)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.0)
+- css/styles.css           -> Pasta css/ (Estilos dos cartões de fornecedor e botões de cópia MB)
+- js/config.js             -> Pasta js/ (Versão v2.6.0)
+- js/finance-engine.js     -> Pasta js/ (Sombra no calendário apenas para encargos ainda por pagar)
+- js/supabase-sync.js      -> Pasta js/ (Sincronização das colunas entity, payment_ref e cycle_payments)
+- js/app.js                -> Pasta js/ (Lógica completa do Caderno de Encargos sem interferência nos saldos)
 
-Nota: Não é necessária qualquer alteração às tabelas do Supabase.
+2. ATUALIZAÇÃO RÁPIDA NO SUPABASE (SQL EDITOR):
+Para que a Entidade, a Referência e o visto de "Pago" de cada ciclo sincronizem entre os dois telemóveis e computadores, abre o SQL Editor no teu painel Supabase e executa o ficheiro:
+- supabase_v260_caderno_encargos.sql
