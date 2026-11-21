@@ -198,3 +198,37 @@ export function goalTotal(state, goalId) {
       .reduce((acc, t) => acc + savingSigned(t), 0)
   );
 }
+
+export function getProjectedCalendarEvents(state, yearMonth) {
+  const events = [];
+  const [y, m] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = iso();
+
+  for (const r of state.recurring_expenses || []) {
+    if (r.deleted_at || r.active === false) continue;
+    if (!r.start_month || r.start_month > yearMonth) continue;
+    if (r.end_month && r.end_month < yearMonth) continue;
+
+    const occKey = `${r.id}:${yearMonth}`;
+    const alreadyExists = state.transactions.some(t => !t.deleted_at && t.occurrence_key === occKey);
+    if (alreadyExists) continue;
+
+    const day = Math.min(Math.max(1, Number(r.day_of_month) || 1), daysInMonth);
+    const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+    if (dateStr < today && yearMonth < currentMonth()) continue;
+
+    events.push({
+      id: `proj-${occKey}`,
+      date: dateStr,
+      type: 'expense',
+      description: r.description,
+      amount: Number(r.amount) || 0,
+      category: r.category,
+      person: r.person || 'Conta conjunta',
+      isProjected: true,
+      projSource: 'Recorrente prevista'
+    });
+  }
+  return events;
+}

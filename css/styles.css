@@ -550,3 +550,80 @@ body.privacy-masked .cc-spent-sub strong {
   filter: blur(6px);
   user-select: none;
 }
+
+
+/* --- v2.5.0: Reconciliação de saldo, Equilíbrio do casal, Prestações, Regras Auto, Previsão Calendário e Ordenação --- */
+.mini-reconcile-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.mini-reconcile-btn:hover {
+  background: var(--accent-soft, rgba(20, 43, 69, 0.1));
+  border-color: var(--accent);
+}
+
+.couple-balance-box {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px dashed var(--line);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.couple-balance-box b {
+  color: var(--accent);
+}
+
+.dot-proj {
+  background: transparent !important;
+  border: 1.5px dashed var(--amber, #d97706);
+  box-sizing: border-box;
+}
+
+.cal-day.has-projected {
+  border-style: dashed;
+}
+
+.tx-row-projected {
+  border-style: dashed !important;
+  opacity: 0.88;
+  background: var(--surface-2);
+}
+
+.cat-order-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.cat-order-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cat-order-btn:not(:disabled):hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}

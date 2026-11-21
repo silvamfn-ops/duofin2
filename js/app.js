@@ -11,7 +11,7 @@ import { DuoFinSync } from './supabase-sync.js';
 import {
   buildCycles, currentCycle, cycleTransactions, computeCycleBalance,
   computeCycleProjection, computeDailyBurnRate, getAllCreditCardsStats, computeCreditCardDebt,
-  goalTotal, getPeopleList, computeCycleReferenceMonth
+  goalTotal, getPeopleList, computeCycleReferenceMonth, getProjectedCalendarEvents
 } from './finance-engine.js';
 import { SecurityManager } from './security.js';
 import { extractLinesFromPdf, parseStatementLines, guessCategory, learnCategoryRule } from './importers.js';
@@ -260,7 +260,9 @@ function render() {
     }
   }
 
-  const activeCats = (state.categories || []).filter(c => !c.deleted_at);
+  const activeCats = (state.categories || [])
+    .filter(c => !c.deleted_at)
+    .sort((a, b) => (Number(a.sort_order) || 999) - (Number(b.sort_order) || 999) || String(a.name).localeCompare(String(b.name)));
   const ccStats = getAllCreditCardsStats(state);
   if ($('alerts')) {
     const alertHtml = [];
@@ -293,13 +295,32 @@ function render() {
 
   const people = getPeopleList(state);
   const totalExpVal = Math.max(1, sum(ex));
+  const a1Name = people[0];
+  const a2Name = people[1];
+  const a1Paid = sum(ex.filter(t => t.person === a1Name));
+  const a2Paid = sum(ex.filter(t => t.person === a2Name));
+  const coupleDiff = Number((a1Paid - a2Paid).toFixed(2));
+  let coupleBalanceHtml = '';
+  if (a1Paid > 0 || a2Paid > 0) {
+    if (Math.abs(coupleDiff) < 0.01) {
+      coupleBalanceHtml = `<div class="couple-balance-box"><span>⚖️ <b>Equilíbrio do ciclo:</b> Ambos pagaram exatamente o mesmo valor.</span></div>`;
+    } else {
+      const leader = coupleDiff > 0 ? a1Name : a2Name;
+      const trailer = coupleDiff > 0 ? a2Name : a1Name;
+      const absDiff = Math.abs(coupleDiff);
+      const settleHalf = absDiff / 2;
+      coupleBalanceHtml = `<div class="couple-balance-box">
+        <span>⚖️ <b>${esc(leader)}</b> pagou mais <b>${eur(absDiff)}</b> do que ${esc(trailer)} (acerto 50/50: <b>${eur(settleHalf)}</b>).</span>
+      </div>`;
+    }
+  }
   $('persons').innerHTML = people
     .map(p => {
       const v = sum(ex.filter(t => t.person === p));
       const pct = Math.min(100, (v / totalExpVal) * 100);
       return `<div class="barline"><span class="barline-name">${esc(p)}</span><div class="bar"><i style="width:${pct}%"></i></div><span class="barline-val"><b>${eur(v)}</b></span></div>`;
     })
-    .join('');
+    .join('') + coupleBalanceHtml;
 
   const totalDebt = ccStats.reduce((a, c) => a + c.debt, 0);
   if ($('creditCardsSummaryCard')) {
@@ -380,13 +401,28 @@ function render() {
   $('savingGoal').innerHTML =
     '<option value="">Sem objetivo</option>' + activeGoals.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
 
+  if ($('newRuleCategory')) {
+    const prevRuleCat = $('newRuleCategory').value;
+    $('newRuleCategory').innerHTML = catsHtml;
+    if (prevRuleCat && activeCats.some(c => c.name === prevRuleCat)) $('newRuleCategory').value = prevRuleCat;
+  }
+
   $('budgetFields').innerHTML = activeCats
     .map(
-      c =>
-        `<div class="item row"><span>${esc(c.name)}</span><input data-cat-budget-id="${esc(c.id)}" type="number" step="0.01" value="${Number(c.budget) || 0}" style="width:120px;text-align:right"></div>`
+      (c, idx) =>
+        `<div class="item row" style="gap:6px">
+          <div class="row" style="gap:4px">
+            <button type="button" class="cat-order-btn" data-move-cat="${esc(c.id)}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Subir categoria">↑</button>
+            <button type="button" class="cat-order-btn" data-move-cat="${esc(c.id)}" data-dir="1" ${idx === activeCats.length - 1 ? 'disabled' : ''} title="Descer categoria">↓</button>
+            <span style="margin-left:4px">${esc(c.name)}</span>
+          </div>
+          <input data-cat-budget-id="${esc(c.id)}" type="number" step="0.01" value="${Number(c.budget) || 0}" style="width:110px;text-align:right">
+        </div>`
     )
     .join('');
   $('budgetTotal').textContent = eur(totalBudget);
+
+  renderCategoryRules();
 
   $('adult1').value = state.household.adult1_name || 'Adulto 1';
   $('adult2').value = state.household.adult2_name || 'Adulto 2';
@@ -438,17 +474,43 @@ function renderFilteredTransactions(cycles) {
 }
 
 function renderTxRow(t) {
-  const cls = t.type === 'income' ? 'plus' : t.type === 'saving_withdraw' || t.type === 'cc_payment' ? 'neutral' : 'minus';
-  const sign = t.type === 'income' ? '+' : t.type === 'saving' ? '↗' : t.type === 'saving_withdraw' ? '↙' : t.type === 'cc_payment' ? '⇄' : '−';
+  const isProj = !!t.isProjected;
+  const cls = t.type === 'income' ? 'plus' : t.type === 'saving_withdraw' || t.type === 'cc_payment' || t.type === 'transfer' ? 'neutral' : 'minus';
+  const sign = t.type === 'income' ? '+' : t.type === 'saving' ? '↗' : t.type === 'saving_withdraw' ? '↙' : t.type === 'cc_payment' || t.type === 'transfer' ? '⇄' : '−';
   const ccTag = t.credit_card_id ? ' · 💳 Cartão' : '';
-  const statusTag = t.status === 'pending' ? ' · ⏳ Pendente' : t.status === 'skipped' ? ' · 🚫 Ignorado' : '';
-  return `<div class="item row tx-clickable" data-open-tx="${esc(t.id)}">
+  const statusTag = isProj ? ' · 🔮 Previsto (recorrente)' : t.status === 'pending' ? ' · ⏳ Pendente' : t.status === 'skipped' ? ' · 🚫 Ignorado' : '';
+  const clickAttr = isProj ? '' : `data-open-tx="${esc(t.id)}"`;
+  const rowCls = isProj ? 'item row tx-row-projected' : 'item row tx-clickable';
+  return `<div class="${rowCls}" ${clickAttr}>
     <div style="min-width:0;flex:1">
       <b>${esc(t.description)}</b>
       <div class="small">${fmtDate(t.date)} · ${esc(t.category)} · ${esc(t.person)}${ccTag}${statusTag}</div>
     </div>
     <b class="amount ${cls}" style="white-space:nowrap">${sign} ${eur(t.amount)}</b>
   </div>`;
+}
+
+function renderCategoryRules() {
+  const listEl = $('categoryRulesList');
+  const badgeEl = $('autoRulesCountBadge');
+  if (!listEl) return;
+  const rules = (state.meta?.category_rules || []).slice().sort((a, b) => (b.hits || 0) - (a.hits || 0));
+  if (badgeEl) badgeEl.textContent = `${rules.length} regra(s)`;
+  if (!rules.length) {
+    listEl.innerHTML = '<div class="empty">Ainda sem regras aprendidas ou personalizadas. Adiciona uma acima ou altera categorias ao importar extratos.</div>';
+    return;
+  }
+  listEl.innerHTML = rules
+    .map(
+      (r, idx) => `<div class="item row" style="gap:8px">
+        <div style="min-width:0;flex:1">
+          <b>${esc(r.keyword)}</b> → <span class="pill">${esc(r.category)}</span>
+          ${r.hits ? `<span class="small" style="margin-left:6px">(${r.hits}x)</span>` : ''}
+        </div>
+        <button type="button" class="danger" data-del-cat-rule="${idx}" title="Apagar regra">×</button>
+      </div>`
+    )
+    .join('');
 }
 
 function renderQuickTemplates() {
@@ -513,6 +575,7 @@ function renderCalendar() {
   const offset = firstDay === 0 ? 6 : firstDay - 1;
   const daysInMonth = new Date(y, m, 0).getDate();
   const today = iso();
+  const projectedMonthEvents = getProjectedCalendarEvents(state, calendarMonthStr);
 
   const weekHeaders = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
     .map(d => `<div class="cal-head">${d}</div>`)
@@ -523,21 +586,30 @@ function renderCalendar() {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${calendarMonthStr}-${String(d).padStart(2, '0')}`;
-    const dayTx = state.transactions.filter(t => !t.deleted_at && t.date === dateStr);
-    const hasExp = dayTx.some(t => t.type === 'expense');
-    const hasInc = dayTx.some(t => t.type === 'income');
-    const hasSav = dayTx.some(t => t.type === 'saving' || t.type === 'saving_withdraw');
+    const realTx = state.transactions.filter(t => !t.deleted_at && t.date === dateStr);
+    const projTx = projectedMonthEvents.filter(p => p.date === dateStr);
+    const hasFutureScheduled = realTx.some(t => t.date > today);
+    const hasExp = realTx.some(t => t.type === 'expense' && t.date <= today);
+    const hasInc = realTx.some(t => t.type === 'income');
+    const hasSav = realTx.some(t => t.type === 'saving' || t.type === 'saving_withdraw');
+    const hasProj = projTx.length > 0 || hasFutureScheduled;
     const dots =
       (hasExp ? '<i class="dot dot-exp"></i>' : '') +
       (hasInc ? '<i class="dot dot-inc"></i>' : '') +
-      (hasSav ? '<i class="dot dot-sav"></i>' : '');
-    const cls = `cal-day${dateStr === today ? ' is-today' : ''}${dateStr === selectedCalendarDay ? ' is-selected' : ''}`;
+      (hasSav ? '<i class="dot dot-sav"></i>' : '') +
+      (hasProj ? '<i class="dot dot-proj"></i>' : '');
+    const cls = `cal-day${dateStr === today ? ' is-today' : ''}${dateStr === selectedCalendarDay ? ' is-selected' : ''}${hasProj ? ' has-projected' : ''}`;
     cells += `<div class="${cls}" data-cal-day="${dateStr}"><strong>${d}</strong><div class="cal-dots">${dots}</div></div>`;
   }
 
   $('calendar').innerHTML = weekHeaders + cells;
   $('dayTitle').textContent = `Movimentos de ${fmtDate(selectedCalendarDay)}`;
-  const items = state.transactions.filter(t => !t.deleted_at && t.date === selectedCalendarDay);
+  const selMonth = selectedCalendarDay.slice(0, 7);
+  const selProjected = selMonth === calendarMonthStr ? projectedMonthEvents.filter(p => p.date === selectedCalendarDay) : getProjectedCalendarEvents(state, selMonth).filter(p => p.date === selectedCalendarDay);
+  const items = [
+    ...state.transactions.filter(t => !t.deleted_at && t.date === selectedCalendarDay),
+    ...selProjected
+  ];
 
   const daySummaryEl = $('daySummary');
   if (daySummaryEl) {
@@ -582,9 +654,10 @@ function openTxDetailModal(txId) {
     cc_payment: 'Pagamento de cartão de crédito',
     income: 'Rendimento',
     saving: 'Poupança transferida',
-    saving_withdraw: 'Resgate de poupança'
+    saving_withdraw: 'Resgate de poupança',
+    transfer: 'Transferência interna entre contas'
   };
-  const icons = { expense: '💸', cc_payment: '💳', income: '💰', saving: '🎯', saving_withdraw: '🏦' };
+  const icons = { expense: '💸', cc_payment: '💳', income: '💰', saving: '🎯', saving_withdraw: '🏦', transfer: '🔁' };
   $('txModalIcon').textContent = icons[tx.type] || '🧾';
   $('txModalAmountDisplay').textContent = eur(tx.amount);
   $('txModalAmountDisplay').className = 'tx-modal-amount ' + (tx.type === 'income' ? 'plus' : tx.type === 'expense' ? 'minus' : 'neutral');
@@ -594,6 +667,28 @@ function openTxDetailModal(txId) {
   $('txModalCatDisplay').textContent = tx.category;
   $('txModalPersonDisplay').textContent = tx.person;
   $('txModalSubtitle').textContent = tx.status === 'pending' ? 'Estado: Pendente' : 'Estado: Confirmado';
+
+  const instBox = $('txModalInstallmentBox');
+  if (instBox) {
+    if (tx.installment_group_id) {
+      const today = iso();
+      const groupTxs = state.transactions
+        .filter(t => !t.deleted_at && t.installment_group_id === tx.installment_group_id)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const futureTxs = groupTxs.filter(t => t.date > today);
+      const paidCount = groupTxs.length - futureTxs.length;
+      const remainingTotal = sum(futureTxs);
+      instBox.hidden = false;
+      $('txModalInstProgressBadge').textContent = `${paidCount}/${groupTxs.length} pagas`;
+      $('txModalInstSummaryText').textContent = futureTxs.length
+        ? `Faltam ${futureTxs.length} prestação(ões) futura(s) · Total em dívida: ${eur(remainingTotal)}`
+        : 'Todas as prestações deste plano já venceram.';
+      $('txModalSettleInstBtn').hidden = futureTxs.length === 0;
+      $('txModalDeleteFutureInstBtn').hidden = futureTxs.length === 0;
+    } else {
+      instBox.hidden = true;
+    }
+  }
 
   $('txDetailModal').hidden = false;
 }
@@ -614,6 +709,16 @@ function switchModalToEdit() {
   $('modalEditPerson').value = tx.person;
   $('modalEditCountsCycle').checked = tx.counts_for_cycle !== false;
 
+  if ($('modalEditTransferFrom') && $('modalEditTransferTo')) {
+    $('modalEditTransferFrom').innerHTML = $('person').innerHTML;
+    $('modalEditTransferTo').innerHTML = $('person').innerHTML;
+    const parts = String(tx.person || '').split('→').map(s => s.trim());
+    if (parts.length === 2) {
+      $('modalEditTransferFrom').value = parts[0];
+      $('modalEditTransferTo').value = parts[1];
+    }
+  }
+
   $('modalEditPaymentMethod').innerHTML = $('paymentMethod').innerHTML;
   $('modalEditPaymentMethod').value = tx.credit_card_id ? `cc:${tx.credit_card_id}` : 'bank';
   $('modalEditCcPaymentCard').innerHTML = $('ccPaymentCard').innerHTML;
@@ -631,6 +736,7 @@ function updateModalEditVisibility() {
   $('modalEditCcPaymentWrap').hidden = tp !== 'cc_payment';
   $('modalEditGoalWrap').hidden = tp !== 'saving' && tp !== 'saving_withdraw';
   $('modalEditIncomeCycleWrap').hidden = tp !== 'income';
+  if ($('modalEditTransferWrap')) $('modalEditTransferWrap').hidden = tp !== 'transfer';
 }
 
 function runImpactSimulator() {
@@ -976,6 +1082,14 @@ document.addEventListener('DOMContentLoaded', () => {
     $('ccPaymentField').hidden = tp !== 'cc_payment';
     $('savingGoalField').hidden = tp !== 'saving' && tp !== 'saving_withdraw';
     $('incomeCycleField').hidden = tp !== 'income';
+    if ($('transferAccountsField')) {
+      $('transferAccountsField').hidden = tp !== 'transfer';
+      if (tp === 'transfer') {
+        $('transferFrom').innerHTML = $('person').innerHTML;
+        $('transferTo').innerHTML = $('person').innerHTML;
+        if ($('transferTo').options.length > 2) $('transferTo').selectedIndex = 2;
+      }
+    }
   };
   $('paymentMethod').onchange = () => {
     $('expenseCcHint').hidden = !$('paymentMethod').value.startsWith('cc:');
@@ -1030,8 +1144,8 @@ document.addEventListener('DOMContentLoaded', () => {
         type: tp,
         description: isInst ? `${baseDesc} (${i + 1}/${count})` : baseDesc,
         amount: Number(partAmt.toFixed(2)),
-        category: tp === 'expense' ? $('category').value : tp === 'cc_payment' ? 'Pagamento de cartão' : tp === 'income' ? 'Rendimento' : 'Poupança',
-        person: $('person').value,
+        category: tp === 'expense' ? $('category').value : tp === 'cc_payment' ? 'Pagamento de cartão' : tp === 'income' ? 'Rendimento' : tp === 'transfer' ? 'Transferência interna' : 'Poupança',
+        person: tp === 'transfer' && $('transferFrom') && $('transferTo') ? `${$('transferFrom').value} → ${$('transferTo').value}` : $('person').value,
         status: 'confirmed',
         credit_card_id: ccId,
         goal_id: tp === 'saving' || tp === 'saving_withdraw' ? $('savingGoal').value || null : null,
@@ -1247,8 +1361,10 @@ document.addEventListener('DOMContentLoaded', () => {
     tx.type = tp;
     tx.description = $('modalEditDesc').value.trim();
     tx.amount = Number(val.toFixed(2));
-    tx.category = tp === 'expense' ? $('modalEditCat').value : tp === 'cc_payment' ? 'Pagamento de cartão' : tp === 'income' ? 'Rendimento' : 'Poupança';
-    tx.person = $('modalEditPerson').value;
+    tx.category = tp === 'expense' ? $('modalEditCat').value : tp === 'cc_payment' ? 'Pagamento de cartão' : tp === 'income' ? 'Rendimento' : tp === 'transfer' ? 'Transferência interna' : 'Poupança';
+    tx.person = tp === 'transfer' && $('modalEditTransferFrom') && $('modalEditTransferTo')
+      ? `${$('modalEditTransferFrom').value} → ${$('modalEditTransferTo').value}`
+      : $('modalEditPerson').value;
     tx.counts_for_cycle = tp === 'income' ? $('modalEditCountsCycle').checked : true;
     tx.credit_card_id =
       tp === 'expense' && $('modalEditPaymentMethod').value.startsWith('cc:')
@@ -1362,6 +1478,201 @@ document.addEventListener('DOMContentLoaded', () => {
       $('installmentAmountMode').value = 'total';
     }
   };
+
+  // --- 1. Reconciliação de Saldo Bancário ---
+  if ($('openReconcileBtn')) {
+    $('openReconcileBtn').onclick = e => {
+      e.stopPropagation();
+      const cycles = buildCycles(state);
+      const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+      const today = iso();
+      const tx = cycleTransactions(state, cycle).filter(t => t.date <= today);
+      const ccExpTotal = sum(tx.filter(t => t.type === 'expense' && isPaid(t) && t.credit_card_id));
+      const curBal = Number((computeCycleBalance(state, cycle, today) + ccExpTotal).toFixed(2));
+      $('recCurrentAppBal').textContent = eur(curBal);
+      $('recCurrentAppBal').dataset.val = String(curBal);
+      $('recRealBankBalance').value = '';
+      $('recDiffRow').hidden = true;
+      $('recPerson').innerHTML = $('person').innerHTML;
+      $('reconcileModal').hidden = false;
+      setTimeout(() => $('recRealBankBalance').focus(), 50);
+    };
+  }
+  if ($('closeReconcileModalBtn')) $('closeReconcileModalBtn').onclick = () => ($('reconcileModal').hidden = true);
+  if ($('cancelReconcileBtn')) $('cancelReconcileBtn').onclick = () => ($('reconcileModal').hidden = true);
+  if ($('reconcileModal')) {
+    $('reconcileModal').onclick = e => {
+      if (e.target === $('reconcileModal')) $('reconcileModal').hidden = true;
+    };
+  }
+  if ($('recRealBankBalance')) {
+    $('recRealBankBalance').oninput = () => {
+      const appBal = Number($('recCurrentAppBal').dataset.val) || 0;
+      const realVal = parseFloat($('recRealBankBalance').value);
+      if (!Number.isFinite(realVal)) {
+        $('recDiffRow').hidden = true;
+        return;
+      }
+      const diff = Number((realVal - appBal).toFixed(2));
+      $('recDiffRow').hidden = false;
+      $('recDiffPreview').textContent = (diff > 0 ? '+' : '') + eur(diff);
+      $('recDiffPreview').className = diff > 0 ? 'plus' : diff < 0 ? 'minus' : '';
+    };
+  }
+  if ($('reconcileForm')) {
+    $('reconcileForm').onsubmit = e => {
+      e.preventDefault();
+      const appBal = Number($('recCurrentAppBal').dataset.val) || 0;
+      const realVal = parseFloat($('recRealBankBalance').value);
+      if (!Number.isFinite(realVal)) return;
+      const diff = Number((realVal - appBal).toFixed(2));
+      if (Math.abs(diff) < 0.01) {
+        $('reconcileModal').hidden = true;
+        showToast('O saldo da app já coincide com o banco!', { type: 'success' });
+        return;
+      }
+      const isPositive = diff > 0;
+      const tx = {
+        id: uid('recbal'),
+        date: iso(),
+        type: isPositive ? 'income' : 'expense',
+        description: 'Acerto de saldo bancário',
+        amount: Math.abs(diff),
+        category: isPositive ? 'Rendimento' : 'Outros / imprevistos',
+        person: $('recPerson').value || 'Conta conjunta',
+        status: 'confirmed',
+        counts_for_cycle: false,
+        updated_at: Date.now()
+      };
+      state.transactions.push(tx);
+      $('reconcileModal').hidden = true;
+      mutate('transactions', tx);
+      showToast(`Saldo acertado (${diff > 0 ? '+' : ''}${eur(diff)})!`, { type: 'success' });
+    };
+  }
+
+  // --- 3. Gestão em Grupo de Prestações (Liquidar ou Apagar Futuras) ---
+  if ($('txModalSettleInstBtn')) {
+    $('txModalSettleInstBtn').onclick = () => {
+      const tx = state.transactions.find(t => String(t.id) === String($('modalTxId').value));
+      if (!tx || !tx.installment_group_id) return;
+      const today = iso();
+      const futureTxs = state.transactions.filter(
+        t => !t.deleted_at && t.installment_group_id === tx.installment_group_id && t.date > today
+      );
+      if (!futureTxs.length) return;
+      if (!confirm(`Liquidar antecipadamente ${futureTxs.length} prestação(ões) restante(s) (${eur(sum(futureTxs))}) na data de hoje?`)) return;
+      const now = Date.now();
+      futureTxs.forEach(ft => {
+        ft.date = today;
+        ft.description = ft.description + ' [Liquidada]';
+        ft.updated_at = now;
+        enqueueOutbox('transactions', ft);
+      });
+      saveLocalState(state);
+      $('txDetailModal').hidden = true;
+      render();
+      sync.flushOutbox();
+      showToast(`${futureTxs.length} prestação(ões) liquidada(s) hoje!`, { type: 'success' });
+    };
+  }
+
+  if ($('txModalDeleteFutureInstBtn')) {
+    $('txModalDeleteFutureInstBtn').onclick = () => {
+      const tx = state.transactions.find(t => String(t.id) === String($('modalTxId').value));
+      if (!tx || !tx.installment_group_id) return;
+      const today = iso();
+      const futureTxs = state.transactions.filter(
+        t => !t.deleted_at && t.installment_group_id === tx.installment_group_id && t.date > today
+      );
+      if (!futureTxs.length) return;
+      if (!confirm(`Apagar ${futureTxs.length} prestação(ões) futura(s) deste plano?`)) return;
+      const now = Date.now();
+      futureTxs.forEach(ft => {
+        ft.deleted_at = now;
+        ft.updated_at = now;
+        enqueueOutbox('transactions', ft);
+      });
+      saveLocalState(state);
+      $('txDetailModal').hidden = true;
+      render();
+      sync.flushOutbox();
+      showToast(`${futureTxs.length} prestação(ões) futura(s) removida(s).`);
+    };
+  }
+
+  // --- 4. Regras de Categorização Automática Editáveis ---
+  if ($('addCategoryRuleForm')) {
+    $('addCategoryRuleForm').onsubmit = e => {
+      e.preventDefault();
+      const kw = $('newRuleKeyword').value.trim().toUpperCase();
+      const cat = $('newRuleCategory').value;
+      if (!kw || !cat) return;
+      state.meta = state.meta || { category_rules: [], handled_rollovers: [] };
+      state.meta.category_rules = state.meta.category_rules || [];
+      const existing = state.meta.category_rules.find(r => r.keyword.toUpperCase() === kw);
+      if (existing) {
+        existing.category = cat;
+      } else {
+        state.meta.category_rules.push({ keyword: kw, category: cat, hits: 1 });
+      }
+      state.meta.updated_at = Date.now();
+      saveLocalState(state);
+      if (sync.householdId) {
+        enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+        sync.flushOutbox();
+      }
+      $('newRuleKeyword').value = '';
+      renderCategoryRules();
+      showToast('Regra automática guardada.', { type: 'success' });
+    };
+  }
+
+  document.addEventListener('click', e => {
+    const delRuleBtn = e.target.closest('[data-del-cat-rule]');
+    if (delRuleBtn) {
+      const idx = Number(delRuleBtn.dataset.delCatRule);
+      const rules = (state.meta?.category_rules || []).slice().sort((a, b) => (b.hits || 0) - (a.hits || 0));
+      const targetRule = rules[idx];
+      if (targetRule) {
+        state.meta.category_rules = state.meta.category_rules.filter(r => r !== targetRule);
+        state.meta.updated_at = Date.now();
+        saveLocalState(state);
+        if (sync.householdId) {
+          enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+          sync.flushOutbox();
+        }
+        renderCategoryRules();
+        showToast('Regra removida.');
+      }
+      return;
+    }
+
+    const moveCatBtn = e.target.closest('[data-move-cat]');
+    if (moveCatBtn) {
+      const catId = moveCatBtn.dataset.moveCat;
+      const dir = Number(moveCatBtn.dataset.dir);
+      const activeCats = (state.categories || [])
+        .filter(c => !c.deleted_at)
+        .sort((a, b) => (Number(a.sort_order) || 999) - (Number(b.sort_order) || 999) || String(a.name).localeCompare(String(b.name)));
+      const idx = activeCats.findIndex(c => String(c.id) === String(catId));
+      const swapIdx = idx + dir;
+      if (idx >= 0 && swapIdx >= 0 && swapIdx < activeCats.length) {
+        const temp = activeCats[idx];
+        activeCats[idx] = activeCats[swapIdx];
+        activeCats[swapIdx] = temp;
+        const now = Date.now();
+        activeCats.forEach((c, i) => {
+          c.sort_order = i + 1;
+          c.updated_at = now;
+          enqueueOutbox('categories', c);
+        });
+        saveLocalState(state);
+        render();
+        sync.flushOutbox();
+      }
+    }
+  });
 
   $('budgetForm').onsubmit = e => {
     e.preventDefault();
@@ -1617,7 +1928,9 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Nenhum movimento reconhecido neste ficheiro. Experimenta copiar as linhas do extrato e usar "Colar texto".');
       return;
     }
-    const activeCats = (state.categories || []).filter(c => !c.deleted_at);
+    const activeCats = (state.categories || [])
+    .filter(c => !c.deleted_at)
+    .sort((a, b) => (Number(a.sort_order) || 999) - (Number(b.sort_order) || 999) || String(a.name).localeCompare(String(b.name)));
     const catOpts = activeCats.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
     const dupCount = parsedImportRows.filter(r => r.isDuplicate).length;
 

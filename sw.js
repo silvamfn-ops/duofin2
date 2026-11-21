@@ -1,4 +1,4 @@
-const CACHE_NAME = 'duofin2-core-v2.2.0';
+const CACHE_NAME = 'duofin2-core-v2.5.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,8 @@ const STATIC_ASSETS = [
   './js/importers.js',
   './js/charts.js',
   './js/security.js',
+  './js/duplicate-detector.js',
+  './js/pdf-report.js',
   './js/app.js'
 ];
 
