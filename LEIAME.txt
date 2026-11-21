@@ -1,0 +1,9 @@
+INSTRUÇÕES DE INSTALAÇÃO (DuoFin 2)
+
+Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
+- index.html               -> Raiz do projeto
+- js/app.js                -> Pasta js/
+- js/duplicate-detector.js -> Novo ficheiro na pasta js/
+- css/styles.css           -> Pasta css/
+
+Nota: Não é necessária qualquer alteração às tabelas do Supabase.

@@ -15,6 +15,7 @@ import {
 } from './finance-engine.js';
 import { SecurityManager } from './security.js';
 import { extractLinesFromPdf, parseStatementLines, guessCategory, learnCategoryRule } from './importers.js';
+import { evaluateStatementDuplicates } from './duplicate-detector.js';
 import { drawSavingsChart, drawAnalyticsChart } from './charts.js';
 
 let state = loadLocalState();
@@ -700,6 +701,152 @@ document.addEventListener('DOMContentLoaded', () => {
     $('simDesc').focus();
   };
 
+  // --- Fecho de Ciclo (Saldo Negativo -> Transita | Saldo Positivo -> Transita ou Poupança) ---
+  function openCloseCycleModal() {
+    const cycles = buildCycles(state);
+    const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+    const bal = Number(computeCycleBalance(state, cycle, cycle.end).toFixed(2));
+
+    $('closeCycleSubtitle').textContent = `${cycle.monthLabel} (${fmtDate(cycle.start)} a ${fmtDate(cycle.end)})`;
+
+    const alertBox = $('closeCycleAlertBox');
+    const expText = $('closeCycleExplanation');
+    const posOpts = $('closeCyclePositiveOptions');
+    const confirmBtn = $('confirmCloseCycleBtn');
+
+    if (Math.abs(bal) < 0.01) {
+      alertBox.className = 'alert good';
+      alertBox.innerHTML = `Saldo final do ciclo: <b>0,00 €</b>`;
+      expText.textContent = 'Este ciclo está perfeitamente saldado (0,00 €). Não há saldo remanescente a transitar.';
+      posOpts.hidden = true;
+      confirmBtn.hidden = true;
+    } else if (bal < 0) {
+      confirmBtn.hidden = false;
+      alertBox.className = 'alert red';
+      alertBox.innerHTML = `Saldo final negativo: <b>${eur(bal)}</b>`;
+      expText.textContent = 'Como o saldo é negativo, este défice transitará automaticamente para o início do ciclo seguinte para manter o saldo bancário reconciliado.';
+      posOpts.hidden = true;
+    } else {
+      confirmBtn.hidden = false;
+      alertBox.className = 'alert good';
+      alertBox.innerHTML = `Saldo final positivo (sobra): <b>+${eur(bal)}</b>`;
+      expText.textContent = 'Escolhe o destino desta sobra para evitar incongruências com o saldo real da conta bancária:';
+      posOpts.hidden = false;
+      const defaultRadio = document.querySelector('input[name="cycleCloseAction"][value="carryover"]');
+      if (defaultRadio) defaultRadio.checked = true;
+      $('closeCycleGoalWrap').hidden = true;
+      const activeGoals = (state.savings_goals || []).filter(g => !g.deleted_at);
+      $('closeCycleGoalSelect').innerHTML =
+        '<option value="">Poupança geral (sem objetivo específico)</option>' +
+        activeGoals.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
+    }
+
+    $('closeCycleModal').hidden = false;
+  }
+
+  if ($('closeCycleBtn')) $('closeCycleBtn').onclick = openCloseCycleModal;
+  if ($('closeCycleModalXBtn')) $('closeCycleModalXBtn').onclick = () => ($('closeCycleModal').hidden = true);
+  if ($('cancelCloseCycleBtn')) $('cancelCloseCycleBtn').onclick = () => ($('closeCycleModal').hidden = true);
+  if ($('closeCycleModal')) {
+    $('closeCycleModal').onclick = e => {
+      if (e.target === $('closeCycleModal')) $('closeCycleModal').hidden = true;
+    };
+  }
+
+  document.querySelectorAll('input[name="cycleCloseAction"]').forEach(radio => {
+    radio.onchange = () => {
+      $('closeCycleGoalWrap').hidden = radio.value !== 'savings';
+    };
+  });
+
+  if ($('confirmCloseCycleBtn')) {
+    $('confirmCloseCycleBtn').onclick = () => {
+      const cycles = buildCycles(state);
+      const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
+      const bal = Number(computeCycleBalance(state, cycle, cycle.end).toFixed(2));
+      if (Math.abs(bal) < 0.01) {
+        $('closeCycleModal').hidden = true;
+        return;
+      }
+
+      const [ey, em, ed] = cycle.end.split('-').map(Number);
+      const nextDayObj = new Date(ey, em - 1, ed + 1);
+      const nextCycleStartDate = `${nextDayObj.getFullYear()}-${String(nextDayObj.getMonth() + 1).padStart(2, '0')}-${String(nextDayObj.getDate()).padStart(2, '0')}`;
+
+      const closureTag = `cycle-close:${cycle.key}`;
+      for (const oldTx of state.transactions) {
+        if (!oldTx.deleted_at && oldTx.occurrence_key === closureTag) {
+          oldTx.deleted_at = Date.now();
+          oldTx.updated_at = Date.now();
+          enqueueOutbox('transactions', oldTx);
+        }
+      }
+
+      if (bal < 0) {
+        const carryTx = {
+          id: uid('carry'),
+          date: nextCycleStartDate,
+          type: 'expense',
+          description: `Saldo negativo transitado (${fmtDate(cycle.start)} – ${fmtDate(cycle.end)})`,
+          amount: Math.abs(bal),
+          category: 'Saldo transitado',
+          person: 'Conta conjunta',
+          status: 'confirmed',
+          occurrence_key: closureTag,
+          counts_for_cycle: false,
+          updated_at: Date.now()
+        };
+        state.transactions.push(carryTx);
+        enqueueOutbox('transactions', carryTx);
+        showToast(`Défice de ${eur(bal)} transitado para o ciclo seguinte.`, { type: 'success' });
+      } else {
+        const action = document.querySelector('input[name="cycleCloseAction"]:checked')?.value || 'carryover';
+        if (action === 'carryover') {
+          const carryTx = {
+            id: uid('carry'),
+            date: nextCycleStartDate,
+            type: 'income',
+            description: `Saldo positivo transitado (${fmtDate(cycle.start)} – ${fmtDate(cycle.end)})`,
+            amount: bal,
+            category: 'Saldo transitado',
+            person: 'Conta conjunta',
+            status: 'confirmed',
+            occurrence_key: closureTag,
+            counts_for_cycle: false,
+            updated_at: Date.now()
+          };
+          state.transactions.push(carryTx);
+          enqueueOutbox('transactions', carryTx);
+          showToast(`Sobra de +${eur(bal)} transitada para o ciclo seguinte!`, { type: 'success' });
+        } else {
+          const goalId = $('closeCycleGoalSelect').value || null;
+          const savTx = {
+            id: uid('sav-close'),
+            date: cycle.end,
+            type: 'saving',
+            description: `Sobra de ciclo transferida para Poupança (${fmtDate(cycle.end)})`,
+            amount: bal,
+            category: 'Poupança',
+            person: 'Conta conjunta',
+            goal_id: goalId,
+            status: 'confirmed',
+            occurrence_key: closureTag,
+            counts_for_cycle: false,
+            updated_at: Date.now()
+          };
+          state.transactions.push(savTx);
+          enqueueOutbox('transactions', savTx);
+          showToast(`Sobra de +${eur(bal)} atribuída a Poupança!`, { type: 'success' });
+        }
+      }
+
+      saveLocalState(state);
+      $('closeCycleModal').hidden = true;
+      render();
+      sync.flushOutbox();
+    };
+  }
+
   $('amount').oninput = () => {
     const raw = $('amount').value;
     const val = evaluateAmountExpression(raw);
@@ -1339,27 +1486,33 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = '';
   };
 
-  function showImportPreview(rows) {
-    parsedImportRows = rows;
+  function showImportPreview(rows, skipReeval = false) {
+    parsedImportRows = skipReeval ? rows : evaluateStatementDuplicates(rows, state.transactions, { dayWindow: 3 });
     if (!parsedImportRows.length) {
       alert('Nenhum movimento reconhecido neste ficheiro. Experimenta copiar as linhas do extrato e usar "Colar texto".');
       return;
     }
     const activeCats = (state.categories || []).filter(c => !c.deleted_at);
     const catOpts = activeCats.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+    const dupCount = parsedImportRows.filter(r => r.isDuplicate).length;
 
     $('csvPreviewContainer').hidden = false;
-    $('csvSummaryCount').textContent = `${parsedImportRows.length} movimento(s) detetado(s)`;
+    $('csvToggleAll').checked = dupCount === 0;
+    $('csvSummaryCount').textContent = dupCount > 0
+      ? `${parsedImportRows.length} detetado(s) · ⚠️ ${dupCount} possível(is) duplicado(s) desmarcado(s)`
+      : `${parsedImportRows.length} movimento(s) detetado(s)`;
+
     $('csvPreviewList').innerHTML = parsedImportRows
       .map((r, i) => `
-        <div class="item" style="display:flex;flex-direction:column;gap:6px">
+        <div class="item ${r.isDuplicate ? 'import-row-duplicate' : ''}" style="display:flex;flex-direction:column;gap:6px">
           <div class="row">
             <label class="checkbox-row" style="margin:0;flex:1;min-width:0">
-              <input type="checkbox" data-imp-idx="${i}" checked>
+              <input type="checkbox" data-imp-idx="${i}" ${r.selected ? 'checked' : ''}>
               <span style="overflow:hidden;text-overflow:ellipsis">${fmtDate(r.date)} · <b>${esc(r.description)}</b></span>
             </label>
             <b class="${r.type === 'income' ? 'plus' : 'minus'}" style="white-space:nowrap">${r.type === 'income' ? '+' : '−'} ${eur(r.amount)}</b>
           </div>
+          ${r.isDuplicate ? `<div style="padding-left:24px"><span class="dup-badge" title="${esc(r.duplicateReason)}">⚠️ Possível duplicado (${fmtDate(r.matchedTx.date)} · ${esc(r.matchedTx.description)})</span></div>` : ''}
           <div class="row" style="gap:8px;padding-left:24px">
             <select data-imp-type="${i}" style="padding:4px 8px;font-size:12px;max-width:130px">
               <option value="expense" ${r.type === 'expense' ? 'selected' : ''}>Despesa</option>
@@ -1381,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         typeSel.onchange = () => {
           r.type = typeSel.value;
           if (catSel) catSel.disabled = r.type === 'income';
-          showImportPreview(parsedImportRows);
+          showImportPreview(parsedImportRows, false);
         };
       }
       if (catSel) {

@@ -107,6 +107,7 @@
             <button type="button" class="icon-btn" id="prevCycleBtn" title="Ciclo anterior" aria-label="Ciclo anterior">‹</button>
             <select id="cycleSelect" aria-label="Selecionar ciclo financeiro" style="max-width:220px"></select>
             <button type="button" class="icon-btn" id="nextCycleBtn" title="Ciclo seguinte" aria-label="Ciclo seguinte">›</button>
+            <button type="button" class="secondary" id="closeCycleBtn" title="Decidir destino do saldo final deste ciclo" style="padding:6px 10px;font-size:12.5px">🔒 Fechar ciclo</button>
           </div>
         </div>
       </div>
@@ -667,11 +668,11 @@
       </div>
 
       <div class="card">
-        <h2>📥 Migrar Histórico do DuoFin Antigo (v6.9.0)</h2>
-        <p class="small">Importa o ficheiro <code>duofin-backup.json</code> exportado da versão anterior para transferir todos os teus movimentos, cartões e objetivos para o DuoFin 2.</p>
+        <h2>📥 Importar Cópia de Segurança</h2>
+        <p class="small">Restaura os teus movimentos, cartões e objetivos a partir de uma cópia de segurança JSON exportada anteriormente.</p>
         <div class="actions">
-          <label class="secondary" style="cursor:pointer">📂 Importar duofin-backup.json<input id="importLegacyBackup" type="file" accept=".json,application/json" hidden></label>
-          <button type="button" class="secondary" id="exportBackupBtn">💾 Exportar cópia JSON</button>
+          <label class="secondary" style="cursor:pointer">📂 Selecionar ficheiro JSON<input id="importLegacyBackup" type="file" accept=".json,application/json" hidden></label>
+          <button type="button" class="secondary" id="exportBackupBtn">💾 Exportar cópia de segurança</button>
         </div>
       </div>
 
@@ -840,6 +841,50 @@
             <button type="submit" class="primary">Guardar alterações</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal de Fecho de Ciclo Financeiro -->
+    <div id="closeCycleModal" class="modal-backdrop" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="closeCycleModalTitle">
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <h2 id="closeCycleModalTitle" style="margin:0">Fecho de ciclo financeiro</h2>
+            <div class="small" id="closeCycleSubtitle"></div>
+          </div>
+          <button type="button" class="icon-btn" id="closeCycleModalXBtn" aria-label="Fechar">✕</button>
+        </div>
+
+        <div id="closeCycleAlertBox" class="alert" style="margin:10px 0;font-size:15px"></div>
+        <p class="small" id="closeCycleExplanation"></p>
+
+        <div id="closeCyclePositiveOptions" hidden style="margin-top:12px">
+          <label class="checkbox-row" style="padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px">
+            <input type="radio" name="cycleCloseAction" value="carryover" checked>
+            <div>
+              <b>Transitar para o ciclo seguinte</b>
+              <div class="small">O saldo positivo entra disponível no início do próximo período (sem contar como novo vencimento).</div>
+            </div>
+          </label>
+
+          <label class="checkbox-row" style="padding:10px;border:1px solid var(--line);border-radius:10px">
+            <input type="radio" name="cycleCloseAction" value="savings">
+            <div>
+              <b>Atribuir a uma poupança</b>
+              <div class="small">Transfere a sobra para poupança no último dia do ciclo, fechando este período a 0,00 €.</div>
+            </div>
+          </label>
+
+          <div id="closeCycleGoalWrap" hidden style="margin-top:10px">
+            <label for="closeCycleGoalSelect">Objetivo de poupança de destino (opcional)</label>
+            <select id="closeCycleGoalSelect"></select>
+          </div>
+        </div>
+
+        <div class="actions" style="justify-content:flex-end;margin-top:16px">
+          <button type="button" class="ghost" id="cancelCloseCycleBtn">Cancelar</button>
+          <button type="button" class="primary" id="confirmCloseCycleBtn">Confirmar fecho</button>
+        </div>
       </div>
     </div>
 
