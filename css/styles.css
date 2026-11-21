@@ -494,3 +494,45 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:20px 0 36px}
   .pos { color: #166534 !important; }
   .neg { color: #991b1b !important; }
 }
+
+/* --- Resumo diário no separador Calendário --- */
+.day-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.day-summary-bar[hidden] {
+  display: none !important;
+}
+
+.day-sum-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 6px;
+  text-align: center;
+}
+
+.day-sum-pill span {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.day-sum-pill b {
+  font-size: 14px;
+}
+
+body.privacy-masked .day-sum-pill b {
+  filter: blur(6px);
+  user-select: none;
+}

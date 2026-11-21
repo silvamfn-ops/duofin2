@@ -526,6 +526,35 @@ function renderCalendar() {
   $('calendar').innerHTML = weekHeaders + cells;
   $('dayTitle').textContent = `Movimentos de ${fmtDate(selectedCalendarDay)}`;
   const items = state.transactions.filter(t => !t.deleted_at && t.date === selectedCalendarDay);
+
+  const daySummaryEl = $('daySummary');
+  if (daySummaryEl) {
+    if (!items.length) {
+      daySummaryEl.hidden = true;
+      daySummaryEl.innerHTML = '';
+    } else {
+      const validItems = items.filter(t => t.status !== 'skipped');
+      const dayInc = sum(validItems.filter(t => t.type === 'income'));
+      const dayExp = sum(validItems.filter(t => t.type === 'expense'));
+      const dayNet = dayInc - dayExp;
+      daySummaryEl.hidden = false;
+      daySummaryEl.innerHTML = `
+        <div class="day-sum-pill">
+          <span class="small">Receitas</span>
+          <b class="plus">+${eur(dayInc)}</b>
+        </div>
+        <div class="day-sum-pill">
+          <span class="small">Despesas</span>
+          <b class="minus">−${eur(dayExp)}</b>
+        </div>
+        <div class="day-sum-pill">
+          <span class="small">Saldo do dia</span>
+          <b class="${dayNet > 0 ? 'plus' : dayNet < 0 ? 'minus' : ''}">${dayNet > 0 ? '+' : ''}${eur(dayNet)}</b>
+        </div>
+      `;
+    }
+  }
+
   $('dayItems').innerHTML = items.length ? items.map(renderTxRow).join('') : '<div class="empty">Sem movimentos neste dia.</div>';
 }
 
