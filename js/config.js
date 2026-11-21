@@ -1,4 +1,4 @@
-export const APP_VERSION = 'v2.6.1';
+export const APP_VERSION = 'v2.6.2';
 export const DAY_MS = 86400000;
 const UI_PREFS_KEY = 'duofin2-ui-prefs-v1';
 

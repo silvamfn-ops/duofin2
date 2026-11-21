@@ -105,6 +105,35 @@ function switchTab(tabId) {
   if (tabId === 'calendario') renderCalendar();
 }
 
+const DISMISSED_ALERTS_KEY = 'duofin2-dismissed-alerts-v1';
+
+function getDismissedAlertsMap() {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED_ALERTS_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+function isAlertDismissedForCycle(cycleKey, alertId) {
+  const map = getDismissedAlertsMap();
+  return Array.isArray(map[cycleKey]) && map[cycleKey].includes(alertId);
+}
+
+function dismissAlertForCycle(cycleKey, alertId) {
+  const map = getDismissedAlertsMap();
+  const list = Array.isArray(map[cycleKey]) ? map[cycleKey] : [];
+  if (!list.includes(alertId)) list.push(alertId);
+  map[cycleKey] = list;
+  const keys = Object.keys(map);
+  if (keys.length > 12) {
+    keys.slice(0, keys.length - 12).forEach(k => delete map[k]);
+  }
+  try {
+    localStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify(map));
+  } catch {}
+}
+
 let rolloverPromptOpen = false;
 
 function checkAutomaticCycleRollover() {
@@ -275,15 +304,24 @@ function render() {
       if (c.budget > 0) {
         const spent = sum(ex.filter(t => t.category === c.name));
         if (spent > c.budget) {
-          alertHtml.push(`<div class="alert red">⚠️ <b>${esc(c.name)}</b> ultrapassou o limite em ${eur(spent - c.budget)} (${eur(spent)} / ${eur(c.budget)}).</div>`);
+          const aid = `cat-over:${c.id || c.name}`;
+          if (!isAlertDismissedForCycle(cycle.key, aid)) {
+            alertHtml.push(`<div class="alert red alert-dismissible"><span>⚠️ <b>${esc(c.name)}</b> ultrapassou o limite em ${eur(spent - c.budget)} (${eur(spent)} / ${eur(c.budget)}).</span><button type="button" class="alert-dismiss-btn" data-dismiss-alert="${esc(aid)}" data-dismiss-cycle="${esc(cycle.key)}" title="Ocultar este alerta até ao ciclo seguinte" aria-label="Fechar alerta">✕</button></div>`);
+          }
         } else if (spent >= c.budget * 0.85) {
-          alertHtml.push(`<div class="alert">⚡ <b>${esc(c.name)}</b> já atingiu ${Math.round((spent / c.budget) * 100)}% do orçamento (${eur(spent)} / ${eur(c.budget)}).</div>`);
+          const aid = `cat-warn:${c.id || c.name}`;
+          if (!isAlertDismissedForCycle(cycle.key, aid)) {
+            alertHtml.push(`<div class="alert alert-dismissible"><span>⚡ <b>${esc(c.name)}</b> já atingiu ${Math.round((spent / c.budget) * 100)}% do orçamento (${eur(spent)} / ${eur(c.budget)}).</span><button type="button" class="alert-dismiss-btn" data-dismiss-alert="${esc(aid)}" data-dismiss-cycle="${esc(cycle.key)}" title="Ocultar este alerta até ao ciclo seguinte" aria-label="Fechar alerta">✕</button></div>`);
+          }
         }
       }
     }
     for (const card of ccStats) {
       if (card.limit > 0 && card.debt >= card.limit * 0.8) {
-        alertHtml.push(`<div class="alert ${card.debt >= card.limit ? 'red' : ''}">💳 Cartão <b>${esc(card.name)}</b> com ${Math.round(card.pct)}% do plafond utilizado (${eur(card.debt)} / ${eur(card.limit)}).</div>`);
+        const aid = `cc-limit:${card.id || card.name}:${card.debt >= card.limit ? 'full' : '80'}`;
+        if (!isAlertDismissedForCycle(cycle.key, aid)) {
+          alertHtml.push(`<div class="alert ${card.debt >= card.limit ? 'red' : ''} alert-dismissible"><span>💳 Cartão <b>${esc(card.name)}</b> com ${Math.round(card.pct)}% do plafond utilizado (${eur(card.debt)} / ${eur(card.limit)}).</span><button type="button" class="alert-dismiss-btn" data-dismiss-alert="${esc(aid)}" data-dismiss-cycle="${esc(cycle.key)}" title="Ocultar este alerta até ao ciclo seguinte" aria-label="Fechar alerta">✕</button></div>`);
+        }
       }
     }
     $('alerts').innerHTML = alertHtml.join('');
@@ -297,35 +335,6 @@ function render() {
       return `<div class="barline"><span class="barline-name">${esc(c.name)}</span><div class="bar"><i class="${cls}" style="width:${pct}%"></i></div><span class="barline-val"><b>${eur(v)}</b> / ${Math.round(c.budget)}€</span></div>`;
     })
     .join('');
-
-  const people = getPeopleList(state);
-  const totalExpVal = Math.max(1, sum(ex));
-  const a1Name = people[0];
-  const a2Name = people[1];
-  const a1Paid = sum(ex.filter(t => t.person === a1Name));
-  const a2Paid = sum(ex.filter(t => t.person === a2Name));
-  const coupleDiff = Number((a1Paid - a2Paid).toFixed(2));
-  let coupleBalanceHtml = '';
-  if (a1Paid > 0 || a2Paid > 0) {
-    if (Math.abs(coupleDiff) < 0.01) {
-      coupleBalanceHtml = `<div class="couple-balance-box"><span>⚖️ <b>Equilíbrio do ciclo:</b> Ambos pagaram exatamente o mesmo valor.</span></div>`;
-    } else {
-      const leader = coupleDiff > 0 ? a1Name : a2Name;
-      const trailer = coupleDiff > 0 ? a2Name : a1Name;
-      const absDiff = Math.abs(coupleDiff);
-      const settleHalf = absDiff / 2;
-      coupleBalanceHtml = `<div class="couple-balance-box">
-        <span>⚖️ <b>${esc(leader)}</b> pagou mais <b>${eur(absDiff)}</b> do que ${esc(trailer)} (acerto 50/50: <b>${eur(settleHalf)}</b>).</span>
-      </div>`;
-    }
-  }
-  $('persons').innerHTML = people
-    .map(p => {
-      const v = sum(ex.filter(t => t.person === p));
-      const pct = Math.min(100, (v / totalExpVal) * 100);
-      return `<div class="barline"><span class="barline-name">${esc(p)}</span><div class="bar"><i style="width:${pct}%"></i></div><span class="barline-val"><b>${eur(v)}</b></span></div>`;
-    })
-    .join('') + coupleBalanceHtml;
 
   const totalDebt = ccStats.reduce((a, c) => a + c.debt, 0);
   if ($('creditCardsSummaryCard')) {
@@ -1370,6 +1379,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const dismissAlertBtn = e.target.closest('[data-dismiss-alert]');
+    if (dismissAlertBtn) {
+      const aid = dismissAlertBtn.dataset.dismissAlert;
+      const cKey = dismissAlertBtn.dataset.dismissCycle || selectedCycleKey;
+      if (aid && cKey) {
+        dismissAlertForCycle(cKey, aid);
+        const alertEl = dismissAlertBtn.closest('.alert');
+        if (alertEl) alertEl.remove();
+        showToast('Alerta ocultado até ao ciclo seguinte.', { type: 'info' });
+      }
+      return;
+    }
+
     const copyMbBtn = e.target.closest('[data-copy-mb]');
     if (copyMbBtn) {
       const val = copyMbBtn.dataset.copyMb;
@@ -2371,6 +2393,7 @@ document.addEventListener('DOMContentLoaded', () => {
       selectedCycleKey = null;
       movementCycleKey = null;
       encargosCycleKey = null;
+      try { localStorage.removeItem(DISMISSED_ALERTS_KEY); } catch {}
       saveLocalState(state);
       render();
       if (sync.householdId) await sync.flushOutbox();

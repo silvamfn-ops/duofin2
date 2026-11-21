@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css">
-  <title>DuoFin v2.6.1 — Gestão financeira a dois</title>
+  <title>DuoFin v2.6.2 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
@@ -178,24 +178,13 @@
         </div>
       </div>
 
-      <div class="two summary-collapsible-group">
-        <div class="card summary-collapsible-card" data-accordion-card>
-          <div class="row accordion-header">
-            <h2 style="margin:0">Despesas por categoria</h2>
-            <span class="accordion-chevron" aria-hidden="true">▾</span>
-          </div>
-          <div class="accordion-body" style="margin-top:8px">
-            <div id="cats"></div>
-          </div>
+      <div class="card summary-collapsible-card" data-accordion-card>
+        <div class="row accordion-header">
+          <h2 style="margin:0">Despesas por categoria</h2>
+          <span class="accordion-chevron" aria-hidden="true">▾</span>
         </div>
-        <div class="card summary-collapsible-card summary-detailed-only" data-accordion-card>
-          <div class="row accordion-header">
-            <h2 style="margin:0">Despesas por adulto</h2>
-            <span class="accordion-chevron" aria-hidden="true">▾</span>
-          </div>
-          <div class="accordion-body" style="margin-top:8px">
-            <div id="persons"></div>
-          </div>
+        <div class="accordion-body" style="margin-top:8px">
+          <div id="cats"></div>
         </div>
       </div>
 
@@ -1100,7 +1089,7 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.6.1 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.6.2 · Gestão financeira a dois</footer>
   </div>
   <script type="module" src="./js/app.js"></script>
 </body>

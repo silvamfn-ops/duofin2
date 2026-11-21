@@ -1,15 +1,15 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.1)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.2)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (Pop-up do Caderno de Encargos, opção Limpar Base de Dados e v2.6.1)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.1)
-- css/styles.css           -> Pasta css/ (Estilos do cabeçalho clicável dos fornecedores)
-- js/config.js             -> Pasta js/ (Versão v2.6.1)
-- js/finance-engine.js     -> Pasta js/ (Previsão no calendário apenas para encargos por pagar)
-- js/supabase-sync.js      -> Pasta js/ (Sincronização das colunas entity, payment_ref e cycle_payments)
-- js/app.js                -> Pasta js/ (Pop-up de consulta/edição no Caderno de Encargos, fecho automático de ciclo na entrada de novo vencimento e limpeza da base de dados)
+- index.html               -> Raiz do projeto (Remoção do cartão "Despesas por adulto" no Resumo + v2.6.2)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.2)
+- css/styles.css           -> Pasta css/ (Estilos do botão de fechar alertas)
+- js/config.js             -> Pasta js/ (Versão v2.6.2)
+- js/finance-engine.js     -> Pasta js/ (Motor financeiro)
+- js/supabase-sync.js      -> Pasta js/ (Sincronização cloud)
+- js/app.js                -> Pasta js/ (Alertas dispensáveis até ao ciclo seguinte e limpeza do Resumo)
 
-2. SUPABASE (APENAS SE AINDA NÃO EXECUTASTE NA v2.6.0):
-Se ainda não executaste o script SQL da v2.6.0 no SQL Editor do Supabase, executa o ficheiro:
+2. SUPABASE (APENAS SE AINDA NÃO EXECUTASTE NA v2.6.0/v2.6.1):
+Se ainda não executaste o script SQL no SQL Editor do Supabase, executa o ficheiro:
 - supabase_v260_caderno_encargos.sql
