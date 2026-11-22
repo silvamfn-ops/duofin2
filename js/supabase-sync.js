@@ -32,7 +32,14 @@ export class DuoFinSync {
     this.householdId = null;
     this.user = null;
     this.channel = null;
+    this.channelHealthy = false;
     this.isFlushing = false;
+    this.isPulling = false;
+    this.retryAttempt = 0;
+    this.retryTimer = null;
+    this.reconnectTimer = null;
+    this.heartbeatTimer = null;
+    this.lastSyncAt = null;
   }
 
   getConfig() {
@@ -61,20 +68,62 @@ export class DuoFinSync {
     }
     this.householdId = cfg.householdId;
     this.supabase = createClient(cfg.url, cfg.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true }
+      auth: { persistSession: true, autoRefreshToken: true },
+      realtime: { params: { eventsPerSecond: 10 } }
     });
     return true;
   }
 
+  formatLastSyncTime() {
+    if (!this.lastSyncAt) return '';
+    const d = new Date(this.lastSyncAt);
+    return ` · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  }
+
+  async ensureValidSession() {
+    if (!this.supabase && !this.init()) return null;
+    const { data: { session }, error } = await this.supabase.auth.getSession();
+    if (error || !session) return null;
+    // Refresh token proactively if expiring within 90 seconds
+    const expiresAtMs = (session.expires_at || 0) * 1000;
+    if (expiresAtMs && expiresAtMs - Date.now() < 90_000) {
+      const { data: refreshed } = await this.supabase.auth.refreshSession();
+      if (refreshed?.session) {
+        this.user = refreshed.session.user;
+        return refreshed.session;
+      }
+    }
+    this.user = session.user;
+    return session;
+  }
+
+  startHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(async () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine || !this.householdId) return;
+      await this.flushOutbox();
+      await this.fullPull({ silent: true });
+      if (!this.channelHealthy) {
+        this.subscribeRealtime();
+      }
+    }, 30_000);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
   async connectAndSubscribe() {
-    if (!this.supabase && !this.init()) return;
-    const { data: { session } } = await this.supabase.auth.getSession();
+    const session = await this.ensureValidSession();
     if (!session) {
       this.user = null;
+      this.stopHeartbeat();
       this.onStatusChange('logged_out', 'Configurado. Inicia sessão ou cria conta para sincronizar.');
       return;
     }
-    this.user = session.user;
 
     if (!this.householdId) {
       const { data: members, error } = await this.supabase
@@ -93,6 +142,16 @@ export class DuoFinSync {
 
     await this.flushOutbox();
     await this.fullPull();
+    this.subscribeRealtime();
+    this.startHeartbeat();
+  }
+
+  async resumeFromBackground() {
+    if (!this.isConfigured()) return;
+    const session = await this.ensureValidSession();
+    if (!session || !this.householdId) return;
+    await this.flushOutbox();
+    await this.fullPull({ silent: true });
     this.subscribeRealtime();
   }
 
@@ -117,7 +176,12 @@ export class DuoFinSync {
   }
 
   async signOut() {
+    this.stopHeartbeat();
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.channel && this.supabase) this.supabase.removeChannel(this.channel);
+    this.channel = null;
+    this.channelHealthy = false;
     if (this.supabase) await this.supabase.auth.signOut();
     this.user = null;
     this.householdId = null;
@@ -134,6 +198,7 @@ export class DuoFinSync {
     this.saveConfig(cfg.url, cfg.anonKey, hid);
     await this.fullPull();
     this.subscribeRealtime();
+    this.startHeartbeat();
     return hid;
   }
 
@@ -152,6 +217,7 @@ export class DuoFinSync {
     this.saveConfig(cfg.url, cfg.anonKey, hid);
     await this.fullPull();
     this.subscribeRealtime();
+    this.startHeartbeat();
     return hid;
   }
 
@@ -167,8 +233,22 @@ export class DuoFinSync {
     await this.flushOutbox();
   }
 
+  scheduleOutboxRetry() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    const delays = [4000, 10000, 20000, 30000];
+    const waitMs = delays[Math.min(this.retryAttempt, delays.length - 1)];
+    this.retryAttempt += 1;
+    this.retryTimer = setTimeout(() => {
+      if (navigator.onLine) this.flushOutbox();
+    }, waitMs);
+  }
+
   async flushOutbox() {
-    if (!this.supabase || !this.householdId || this.isFlushing || !navigator.onLine) return;
+    if (!this.supabase || !this.householdId || this.isFlushing) return;
+    if (!navigator.onLine) {
+      this.onStatusChange('offline', 'Sem internet — alterações guardadas localmente.');
+      return;
+    }
     const queue = getOutbox();
     if (!queue.length) return;
 
@@ -176,75 +256,135 @@ export class DuoFinSync {
     this.onStatusChange('syncing', `A sincronizar ${queue.length} alteração(ões)...`);
     const processed = [];
     let failedCount = 0;
+    let lastErrorMsg = '';
 
     try {
+      const session = await this.ensureValidSession();
+      if (!session) {
+        this.onStatusChange('logged_out', 'Sessão expirada. Inicia sessão novamente para sincronizar.');
+        return;
+      }
+
+      // Group queue items by table and deduplicate latest version per record key for atomic batch upserts
+      const grouped = new Map();
       for (const item of queue) {
-        const rec = { ...item.record };
-        if (item.table === 'households') {
-          rec.id = this.householdId;
-          const clean = sanitizeRecord('households', rec);
-          const { error } = await this.supabase.from('households').upsert(clean, { onConflict: 'id' });
-          if (!error) processed.push(`${item.table}:${rec.id}:${item.queuedAt}`);
-          else { failedCount++; console.warn('Erro sync households:', error.message); }
-        } else if (item.table === 'household_meta') {
-          rec.household_id = this.householdId;
-          const clean = sanitizeRecord('household_meta', rec);
-          const { error } = await this.supabase.from('household_meta').upsert(clean, { onConflict: 'household_id' });
-          if (!error) processed.push(`${item.table}:${rec.household_id}:${item.queuedAt}`);
-          else { failedCount++; console.warn('Erro sync meta:', error.message); }
+        if (!grouped.has(item.table)) grouped.set(item.table, []);
+        grouped.get(item.table).push(item);
+      }
+
+      for (const [table, items] of grouped.entries()) {
+        const conflictCol = table === 'household_meta' ? 'household_id' : 'id';
+        const dedupMap = new Map();
+        for (const item of items) {
+          const rec = { ...item.record };
+          if (table === 'households') rec.id = this.householdId;
+          else if (table === 'household_meta') rec.household_id = this.householdId;
+          else rec.household_id = this.householdId;
+
+          const clean = sanitizeRecord(table, rec);
+          const pk = String(clean[conflictCol]);
+          const prev = dedupMap.get(pk);
+          if (!prev || (Number(clean.updated_at) || 0) >= (Number(prev.updated_at) || 0)) {
+            dedupMap.set(pk, clean);
+          }
+        }
+
+        const batchRecords = Array.from(dedupMap.values());
+        const { error } = await this.supabase.from(table).upsert(batchRecords, { onConflict: conflictCol });
+        if (!error) {
+          for (const item of items) {
+            const pk = table === 'household_meta' ? this.householdId : (table === 'households' ? this.householdId : item.record.id);
+            processed.push(`${item.table}:${pk}:${item.queuedAt}`);
+          }
         } else {
-          rec.household_id = this.householdId;
-          const clean = sanitizeRecord(item.table, rec);
-          const { error } = await this.supabase.from(item.table).upsert(clean, { onConflict: 'id' });
-          if (!error) processed.push(`${item.table}:${rec.id}:${item.queuedAt}`);
-          else { failedCount++; console.warn(`Erro sync ${item.table}:`, error.message); }
+          // Fallback to item-by-item upsert if a single record in the batch caused an error
+          console.warn(`Erro lote ${table}:`, error.message);
+          for (const item of items) {
+            const rec = { ...item.record };
+            if (table === 'households') rec.id = this.householdId;
+            else rec.household_id = this.householdId;
+            const clean = sanitizeRecord(table, rec);
+            const { error: itemErr } = await this.supabase.from(table).upsert(clean, { onConflict: conflictCol });
+            if (!itemErr) {
+              const pk = table === 'household_meta' || table === 'households' ? this.householdId : item.record.id;
+              processed.push(`${item.table}:${pk}:${item.queuedAt}`);
+            } else {
+              failedCount++;
+              lastErrorMsg = itemErr.message;
+              console.warn(`Erro sync ${table}:`, itemErr.message);
+            }
+          }
         }
       }
-      clearOutboxItems(processed);
+
+      if (processed.length) clearOutboxItems(processed);
+
       if (failedCount > 0) {
-        this.onStatusChange('offline', `${failedCount} alteração(ões) pendentes (a aguardar nova tentativa).`);
+        this.onStatusChange('offline', `${failedCount} pendente(s): ${lastErrorMsg || 'a repetir sincronização...'}`);
+        this.scheduleOutboxRetry();
       } else {
-        this.onStatusChange('synced', `Sincronizado em tempo real (${this.user?.email || 'ligado'})`);
+        this.retryAttempt = 0;
+        this.lastSyncAt = Date.now();
+        this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
       }
-    } catch {
-      this.onStatusChange('offline', 'Alterações guardadas localmente (aguarda ligação).');
+    } catch (err) {
+      this.onStatusChange('offline', 'Falha temporária de rede — nova tentativa automática em breve.');
+      this.scheduleOutboxRetry();
     } finally {
       this.isFlushing = false;
     }
   }
 
-  async fullPull() {
-    if (!this.supabase || !this.householdId) return;
-    const hid = this.householdId;
+  async fullPull({ silent = false } = {}) {
+    if (!this.supabase || !this.householdId || this.isPulling || !navigator.onLine) return;
+    this.isPulling = true;
+    try {
+      const session = await this.ensureValidSession();
+      if (!session) return;
+      const hid = this.householdId;
 
-    const [hhRes, catRes, ccRes, goalRes, recRes, txRes, metaRes] = await Promise.all([
-      this.supabase.from('households').select('*').eq('id', hid).single(),
-      this.supabase.from('categories').select('*').eq('household_id', hid),
-      this.supabase.from('credit_cards').select('*').eq('household_id', hid),
-      this.supabase.from('savings_goals').select('*').eq('household_id', hid),
-      this.supabase.from('recurring_expenses').select('*').eq('household_id', hid),
-      this.supabase.from('transactions').select('*').eq('household_id', hid),
-      this.supabase.from('household_meta').select('*').eq('household_id', hid).maybeSingle()
-    ]);
+      const [hhRes, catRes, ccRes, goalRes, recRes, txRes, metaRes] = await Promise.all([
+        this.supabase.from('households').select('*').eq('id', hid).single(),
+        this.supabase.from('categories').select('*').eq('household_id', hid),
+        this.supabase.from('credit_cards').select('*').eq('household_id', hid),
+        this.supabase.from('savings_goals').select('*').eq('household_id', hid),
+        this.supabase.from('recurring_expenses').select('*').eq('household_id', hid),
+        this.supabase.from('transactions').select('*').eq('household_id', hid),
+        this.supabase.from('household_meta').select('*').eq('household_id', hid).maybeSingle()
+      ]);
 
-    const state = this.getState();
-    const outbox = getOutbox();
+      const firstError = [hhRes.error, catRes.error, ccRes.error, goalRes.error, recRes.error, txRes.error, metaRes.error].find(Boolean);
+      if (firstError) {
+        if (!silent) {
+          this.onStatusChange('offline', `Erro ao ler nuvem: ${firstError.message}`);
+        }
+        return;
+      }
 
-    if (hhRes.data && (Number(hhRes.data.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
-      state.household = hhRes.data;
+      const state = this.getState();
+      const outbox = getOutbox();
+
+      if (hhRes.data && (Number(hhRes.data.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
+        state.household = hhRes.data;
+      }
+      if (catRes.data) state.categories = this.mergeTable('categories', state.categories, catRes.data, outbox);
+      if (ccRes.data) state.credit_cards = this.mergeTable('credit_cards', state.credit_cards, ccRes.data, outbox);
+      if (goalRes.data) state.savings_goals = this.mergeTable('savings_goals', state.savings_goals, goalRes.data, outbox);
+      if (recRes.data) state.recurring_expenses = this.mergeTable('recurring_expenses', state.recurring_expenses, recRes.data, outbox);
+      if (txRes.data) state.transactions = this.mergeTable('transactions', state.transactions, txRes.data, outbox);
+      if (metaRes.data && (Number(metaRes.data.updated_at) || 0) >= (Number(state.meta.updated_at) || 0)) {
+        state.meta = metaRes.data;
+      }
+
+      saveLocalState(state);
+      this.lastSyncAt = Date.now();
+      this.onRemoteUpdate();
+      if (getOutbox().length === 0) {
+        this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
+      }
+    } finally {
+      this.isPulling = false;
     }
-    if (catRes.data) state.categories = this.mergeTable('categories', state.categories, catRes.data, outbox);
-    if (ccRes.data) state.credit_cards = this.mergeTable('credit_cards', state.credit_cards, ccRes.data, outbox);
-    if (goalRes.data) state.savings_goals = this.mergeTable('savings_goals', state.savings_goals, goalRes.data, outbox);
-    if (recRes.data) state.recurring_expenses = this.mergeTable('recurring_expenses', state.recurring_expenses, recRes.data, outbox);
-    if (txRes.data) state.transactions = this.mergeTable('transactions', state.transactions, txRes.data, outbox);
-    if (metaRes.data && (Number(metaRes.data.updated_at) || 0) >= (Number(state.meta.updated_at) || 0)) {
-      state.meta = metaRes.data;
-    }
-
-    saveLocalState(state);
-    this.onRemoteUpdate();
-    this.onStatusChange('synced', `Sincronizado em tempo real (${this.user?.email || 'ligado'})`);
   }
 
   mergeTable(tableName, localList, remoteList, outbox = getOutbox()) {
@@ -280,10 +420,21 @@ export class DuoFinSync {
   }
 
   subscribeRealtime() {
-    if (this.channel) this.supabase.removeChannel(this.channel);
+    if (!this.supabase || !this.householdId) return;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.channel) {
+      try {
+        this.supabase.removeChannel(this.channel);
+      } catch {}
+      this.channel = null;
+    }
+    this.channelHealthy = false;
     const tables = ['transactions', 'categories', 'credit_cards', 'savings_goals', 'recurring_expenses'];
 
-    this.channel = this.supabase.channel(`duofin2-${this.householdId}`);
+    this.channel = this.supabase.channel(`duofin2-${this.householdId}-${Date.now()}`);
     tables.forEach(table => {
       this.channel.on(
         'postgres_changes',
@@ -294,6 +445,7 @@ export class DuoFinSync {
           const state = this.getState();
           state[table] = this.mergeTable(table, state[table], [record]);
           saveLocalState(state);
+          this.lastSyncAt = Date.now();
           this.onRemoteUpdate();
         }
       );
@@ -308,6 +460,7 @@ export class DuoFinSync {
         if ((Number(payload.new.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
           state.household = payload.new;
           saveLocalState(state);
+          this.lastSyncAt = Date.now();
           this.onRemoteUpdate();
         }
       }
@@ -322,6 +475,7 @@ export class DuoFinSync {
         if ((Number(payload.new.updated_at) || 0) >= (Number(state.meta.updated_at) || 0)) {
           state.meta = payload.new;
           saveLocalState(state);
+          this.lastSyncAt = Date.now();
           this.onRemoteUpdate();
         }
       }
@@ -329,7 +483,16 @@ export class DuoFinSync {
 
     this.channel.subscribe(status => {
       if (status === 'SUBSCRIBED') {
-        this.onStatusChange('synced', `Sincronizado em tempo real (${this.user?.email || 'ligado'})`);
+        this.channelHealthy = true;
+        this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        this.channelHealthy = false;
+        if (!this.reconnectTimer && navigator.onLine && this.householdId) {
+          this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.subscribeRealtime();
+          }, 5000);
+        }
       }
     });
   }

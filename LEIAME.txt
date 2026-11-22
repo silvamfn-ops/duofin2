@@ -1,11 +1,11 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.8)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.9)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (v2.6.8 + legenda de despesas pagas vs. despesas virtuais a crédito)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.8)
-- css/styles.css           -> Pasta css/ (Estilos diferenciados para despesas virtuais a crédito nas barras de categorias e movimentos)
-- js/config.js             -> Pasta js/ (Versão v2.6.8)
-- js/finance-engine.js     -> Pasta js/ (Motor financeiro alinhado com saldo bancário real)
-- js/supabase-sync.js      -> Pasta js/ (Sincronização cloud)
-- js/app.js                -> Pasta js/ (Despesas pagas no Resumo = débito + pagamentos de cartão; compras a crédito surgem como despesas virtuais diferenciadas na respetiva categoria e pagamento de cartão surge como despesa paga no ciclo em que é liquidado)
+- index.html               -> Raiz do projeto (v2.6.9)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.9)
+- css/styles.css           -> Pasta css/ (Estilos da aplicação)
+- js/config.js             -> Pasta js/ (Versão v2.6.9)
+- js/finance-engine.js     -> Pasta js/ (Motor financeiro)
+- js/supabase-sync.js      -> Pasta js/ (Sincronização multi-dispositivo reforçada: upsert em lote por tabela, auto-reconexão do canal Realtime após suspensão no telemóvel, retry automático com backoff, renovação preventiva de sessão JWT e heartbeat de 30s)
+- js/app.js                -> Pasta js/ (Gestão de retoma de suspensão mobile e mudança de rede Wi-Fi/4G)

@@ -2581,11 +2581,22 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  window.addEventListener('online', () => sync.flushOutbox());
+  window.addEventListener('online', () => sync.resumeFromBackground());
+  window.addEventListener('offline', () => {
+    if (sync.householdId) {
+      const badge = $('syncHeaderBadge');
+      if (badge) {
+        badge.textContent = '○ Offline';
+        badge.className = 'sync-badge offline';
+      }
+    }
+  });
+  window.addEventListener('pageshow', e => {
+    if (e.persisted) sync.resumeFromBackground();
+  });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && sync.householdId) {
-      sync.flushOutbox();
-      sync.fullPull();
+    if (document.visibilityState === 'visible') {
+      sync.resumeFromBackground();
     }
   });
 
