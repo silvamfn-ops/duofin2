@@ -196,6 +196,11 @@ export class DuoFinSync {
     if (error) throw error;
     const cfg = this.getConfig();
     this.saveConfig(cfg.url, cfg.anonKey, hid);
+    const st = this.getState();
+    const hasLocalData = (st.transactions?.length || 0) > 0 || (st.credit_cards?.length || 0) > 0 || (st.savings_goals?.length || 0) > 0 || (st.recurring_expenses?.length || 0) > 0;
+    if (hasLocalData) {
+      await this.queueAllLocalToOutbox();
+    }
     await this.fullPull();
     this.subscribeRealtime();
     this.startHeartbeat();
@@ -484,7 +489,13 @@ export class DuoFinSync {
     this.channel.subscribe(status => {
       if (status === 'SUBSCRIBED') {
         this.channelHealthy = true;
-        this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
+        const pending = getOutbox().length;
+        if (pending > 0) {
+          this.onStatusChange('syncing', `${pending} alteração(ões) por enviar para a nuvem...`);
+          this.flushOutbox();
+        } else {
+          this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
+        }
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         this.channelHealthy = false;
         if (!this.reconnectTimer && navigator.onLine && this.householdId) {

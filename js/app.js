@@ -2285,8 +2285,30 @@ document.addEventListener('DOMContentLoaded', () => {
   $('syncNow').onclick = async () => {
     await sync.flushOutbox();
     await sync.fullPull();
-    showToast('Sincronização concluída.', { type: 'success' });
+    const rem = getOutbox().length;
+    if (rem > 0) {
+      showToast(`Ainda existem ${rem} alteração(ões) pendentes na fila.`, { type: 'info' });
+    } else {
+      showToast('Sincronização concluída!', { type: 'success' });
+    }
   };
+  if ($('pushAllLocalBtn')) {
+    $('pushAllLocalBtn').onclick = async () => {
+      if (!sync.householdId) {
+        alert('Liga primeiro a um orçamento partilhado.');
+        return;
+      }
+      if (!confirm('Enviar todos os dados locais deste dispositivo (movimentos, cartões, categorias e objetivos) para a nuvem?')) return;
+      await sync.queueAllLocalToOutbox();
+      await sync.fullPull();
+      const rem = getOutbox().length;
+      if (rem === 0) {
+        showToast('Todos os dados locais foram enviados para a nuvem!', { type: 'success' });
+      } else {
+        showToast(`Ficaram ${rem} item(ns) pendentes. Verifica a mensagem de estado acima.`, { type: 'info' });
+      }
+    };
+  }
 
   $('importLegacyBackup').onchange = async e => {
     const file = e.target.files[0];
