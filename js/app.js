@@ -219,8 +219,53 @@ function checkAutomaticCycleRollover() {
   }
 }
 
+
+function drawResumoDonutChart(catSlices, totalAmount) {
+  const panel = $('catsDonutPanel');
+  const canvas = $('resumoDonutCanvas');
+  const totalEl = $('resumoDonutTotal');
+  if (!panel || !canvas || !totalEl) return;
+
+  const valid = (catSlices || []).filter(s => s.value > 0);
+  if (!valid.length || totalAmount <= 0) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  totalEl.textContent = eur(totalAmount);
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = 190;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, size, size);
+
+  const palette = ['#2B8A64', '#D49B3E', '#1F567D', '#48B888', '#8E6BBF', '#D96B52', '#3A9AB8', '#A68A56'];
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 74;
+  const lineWidth = 22;
+  let startAngle = -Math.PI / 2;
+
+  valid.forEach((slice, idx) => {
+    const angle = (slice.value / totalAmount) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, startAngle, startAngle + angle);
+    ctx.strokeStyle = palette[idx % palette.length];
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+    startAngle += angle;
+  });
+}
+
 function render() {
-  document.title = `DuoFin ${APP_VERSION} — Gestão financeira a dois`;
+  document.title = `DuoFin 2 ${APP_VERSION} — Gestão financeira a dois`;
   const footerEl = document.querySelector('footer');
   if (footerEl) footerEl.textContent = `DuoFin 2 · ${APP_VERSION} · Gestão financeira a dois`;
 
@@ -407,6 +452,16 @@ function render() {
   }
 
   $('cats').innerHTML = catRowsHtml.join('');
+  const donutSlices = activeCats
+    .map(c => ({
+      name: c.name,
+      value: sum(bankExItems.filter(t => t.category === c.name)) + sum(ccExpItems.filter(t => t.category === c.name))
+    }))
+    .filter(s => s.value > 0)
+    .sort((a, b) => b.value - a.value);
+  if (ccPayTotal > 0) donutSlices.push({ name: 'Pagamento cartão', value: ccPayTotal });
+  const donutGrandTotal = donutSlices.reduce((acc, s) => acc + s.value, 0);
+  drawResumoDonutChart(donutSlices, donutGrandTotal);
 
   const totalDebt = ccStats.reduce((a, c) => a + c.debt, 0);
   if ($('creditCardsSummaryCard')) {

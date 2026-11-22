@@ -14,13 +14,29 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css">
-  <title>DuoFin v2.6.12 — Gestão financeira a dois</title>
+  <title>DuoFin 2 v2.7.0 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
   <div id="appLockOverlay" class="app-lock-overlay" hidden>
     <div class="app-lock-box" role="dialog" aria-modal="true" aria-labelledby="appLockTitle">
-      <div class="brandmark" style="margin:0 auto 12px;width:48px;height:48px;font-size:18px" aria-hidden="true">DF</div>
+      <svg class="duofin-logo-svg" viewBox="0 0 64 64" width="56" height="56" style="margin:0 auto 12px;display:block" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="dfGreen" x1="8" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#48B888"/>
+      <stop offset="100%" stop-color="#2B8A64"/>
+    </linearGradient>
+    <linearGradient id="dfGold" x1="56" y1="10" x2="12" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E0B254"/>
+      <stop offset="100%" stop-color="#B8832E"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#FFFFFF" fill-opacity="0.97"/>
+  <path d="M33 17.5C37.5 12.2 46.5 12.4 51.2 18.2C55.8 23.9 54.5 32.8 48.2 38.6L32 51.5" stroke="url(#dfGold)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M31 17.5C26.5 12.2 17.5 12.4 12.8 18.2C8.2 23.9 9.5 32.8 15.8 38.6L32 51.5C39.5 45.2 46.5 37.8 47.5 27.5C41.5 28.8 36.8 33.2 35.5 39.2" stroke="url(#dfGreen)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M21.5 27.5C21.5 22.8 27.5 21.5 32 26.2C36.5 21.5 42.5 22.8 42.5 27.5" stroke="url(#dfGold)" stroke-width="4.2" stroke-linecap="round"/>
+  <path d="M27.2 32.8C25.1 32.8 23.6 34.2 23.6 35.8C23.6 37.4 25.1 38.8 27.2 38.8C29.6 38.8 34.4 32.8 36.8 32.8C38.9 32.8 40.4 34.2 40.4 35.8C40.4 37.4 38.9 38.8 36.8 38.8C34.4 38.8 29.6 32.8 27.2 32.8Z" stroke="#163554" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
       <h2 id="appLockTitle" style="margin:0 0 4px">DuoFin bloqueada</h2>
       <p class="small" id="appLockSubtitle" style="margin:0 0 14px">Introduz o PIN de segurança para aceder aos dados financeiros.</p>
       <input type="password" id="appLockPinInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" enterkeyhint="done" autocomplete="off" placeholder="PIN (4 a 6 dígitos)" aria-label="PIN de desbloqueio" style="text-align:center;font-size:20px;letter-spacing:6px;max-width:210px;margin:0 auto 10px;display:block">
@@ -35,7 +51,23 @@
   <header>
     <div class="wrap header-inner">
       <div>
-        <div class="brandline"><span class="brandmark" aria-hidden="true">DF</span><h1>DuoFin</h1></div>
+        <div class="brandline"><svg class="duofin-logo-svg" viewBox="0 0 64 64" width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="dfGreen" x1="8" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#48B888"/>
+      <stop offset="100%" stop-color="#2B8A64"/>
+    </linearGradient>
+    <linearGradient id="dfGold" x1="56" y1="10" x2="12" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E0B254"/>
+      <stop offset="100%" stop-color="#B8832E"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#FFFFFF" fill-opacity="0.97"/>
+  <path d="M33 17.5C37.5 12.2 46.5 12.4 51.2 18.2C55.8 23.9 54.5 32.8 48.2 38.6L32 51.5" stroke="url(#dfGold)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M31 17.5C26.5 12.2 17.5 12.4 12.8 18.2C8.2 23.9 9.5 32.8 15.8 38.6L32 51.5C39.5 45.2 46.5 37.8 47.5 27.5C41.5 28.8 36.8 33.2 35.5 39.2" stroke="url(#dfGreen)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M21.5 27.5C21.5 22.8 27.5 21.5 32 26.2C36.5 21.5 42.5 22.8 42.5 27.5" stroke="url(#dfGold)" stroke-width="4.2" stroke-linecap="round"/>
+  <path d="M27.2 32.8C25.1 32.8 23.6 34.2 23.6 35.8C23.6 37.4 25.1 38.8 27.2 38.8C29.6 38.8 34.4 32.8 36.8 32.8C38.9 32.8 40.4 34.2 40.4 35.8C40.4 37.4 38.9 38.8 36.8 38.8C34.4 38.8 29.6 32.8 27.2 32.8Z" stroke="#163554" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg><h1>DuoFin<span class="brand-accent-2">2</span></h1></div>
         <p>As nossas finanças. O nosso equilíbrio.</p>
       </div>
       <div class="header-actions">
@@ -184,7 +216,18 @@
           <span class="accordion-chevron" aria-hidden="true">▾</span>
         </div>
         <div class="accordion-body" style="margin-top:8px">
-          <div id="cats"></div>
+          <div class="cats-dashboard-split">
+            <div class="cats-donut-panel" id="catsDonutPanel" hidden>
+              <canvas id="resumoDonutCanvas" width="190" height="190" aria-label="Distribuição de despesas por categoria"></canvas>
+              <div class="cats-donut-center">
+                <span class="small">Total ciclo</span>
+                <b id="resumoDonutTotal">0,00 €</b>
+              </div>
+            </div>
+            <div class="cats-bars-panel">
+              <div id="cats"></div>
+            </div>
+          </div>
         <div id="catsLegend" class="small" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;opacity:0.88">
           <span style="display:inline-flex;align-items:center;gap:5px"><i style="display:inline-block;width:12px;height:8px;border-radius:99px;background:var(--gold)"></i> Pago em conta</span>
           <span style="display:inline-flex;align-items:center;gap:5px"><i class="cc-virtual-swatch"></i> Despesa virtual (a crédito)</span>
@@ -1102,7 +1145,7 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.6.12 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.7.0 · Gestão financeira a dois</footer>
   </div>
   <script type="module" src="./js/app.js"></script>
 </body>
