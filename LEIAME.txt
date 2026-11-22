@@ -1,11 +1,11 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.11)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.12)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (v2.6.11 + caixa de diagnóstico da fila de sincronização e botão 'Limpar fila presa')
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.11)
+- index.html               -> Raiz do projeto (v2.6.12)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.12)
 - css/styles.css           -> Pasta css/ (Estilos da aplicação)
-- js/config.js             -> Pasta js/ (Versão v2.6.11)
+- js/config.js             -> Pasta js/ (Versão v2.6.12)
 - js/finance-engine.js     -> Pasta js/ (Motor financeiro)
-- js/supabase-sync.js      -> Pasta js/ (Converte campos vazios '' para NULL em colunas UUID/data do Postgres e guarda detalhe exato de erros na fila)
-- js/app.js                -> Pasta js/ (Mostra motivo exato de itens presos na fila e limpa fila presa ao fazer reset)
+- js/supabase-sync.js      -> Pasta js/ (Garante que deleted_at=null é enviado explicitamente no upsert para reativar registos restaurados de cópias de segurança)
+- js/app.js                -> Pasta js/ (Corrige restauração de cópia de segurança após limpeza da base de dados, atualizando updated_at, limpando deleted_at e reposicionando o ciclo ativo no Resumo)

@@ -23,6 +23,10 @@ function sanitizeRecord(table, raw) {
   if (!cols) return { ...raw };
   const clean = {};
   for (const col of cols) {
+    if (col === 'deleted_at' && raw[col] === undefined) {
+      clean.deleted_at = null;
+      continue;
+    }
     if (raw[col] !== undefined) {
       let val = raw[col];
       if (NULLABLE_FIELDS.has(col) && (val === '' || val === undefined)) {

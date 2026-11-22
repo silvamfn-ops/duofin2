@@ -2340,12 +2340,38 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const json = JSON.parse(await file.text());
       const converted = convertLegacyV1Backup(json);
-      converted.household.id = sync.householdId;
+      const now = Date.now();
+      converted.household.id = sync.householdId || null;
+      converted.household.updated_at = now;
+      converted.meta = {
+        category_rules: converted.meta?.category_rules || [],
+        handled_rollovers: converted.meta?.handled_rollovers || [],
+        household_id: sync.householdId || null,
+        updated_at: now
+      };
+      ['categories', 'credit_cards', 'savings_goals', 'recurring_expenses', 'transactions'].forEach(tbl => {
+        converted[tbl] = (converted[tbl] || [])
+          .filter(item => !item.deleted_at)
+          .map(item => ({
+            ...item,
+            household_id: sync.householdId || item.household_id || null,
+            deleted_at: null,
+            updated_at: now
+          }));
+      });
+
+      sync.clearAllOutbox();
       state = converted;
+      selectedCycleKey = null;
+      movementCycleKey = null;
+      encargosCycleKey = null;
       saveLocalState(state);
       render();
-      if (sync.householdId) await sync.queueAllLocalToOutbox();
-      showToast(`Histórico migrado (${state.transactions.length} movimentos)!`, { type: 'success' });
+      if (sync.householdId) {
+        await sync.queueAllLocalToOutbox();
+        await sync.fullPull({ silent: true });
+      }
+      showToast(`Cópia de segurança restaurada (${state.transactions.length} movimentos)!`, { type: 'success' });
     } catch (err) {
       alert('Erro ao migrar backup: ' + err.message);
     }
