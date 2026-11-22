@@ -761,3 +761,82 @@ body.privacy-masked .cc-spent-sub strong {
 [data-theme="dark"] .alert-dismiss-btn:hover {
   background: rgba(255, 255, 255, 0.12);
 }
+
+
+/* Despesas virtuais a crédito (barras diferenciadas por categoria e movimentos) */
+.bar-dual {
+  display: flex;
+  height: 9px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  flex: 1;
+  overflow: hidden;
+}
+.bar-dual i {
+  display: block;
+  height: 100%;
+  border-radius: 0;
+}
+.bar-dual i.bar-paid {
+  background: var(--gold);
+}
+.bar-dual i.bar-paid.warn {
+  background: var(--amber);
+}
+.bar-dual i.bar-paid.over {
+  background: var(--red);
+}
+.bar-dual i.bar-virtual {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(194, 138, 46, 0.28),
+    rgba(194, 138, 46, 0.28) 4px,
+    rgba(194, 138, 46, 0.58) 4px,
+    rgba(194, 138, 46, 0.58) 8px
+  );
+  border-left: 1px dashed rgba(194, 138, 46, 0.85);
+}
+.cc-virtual-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 99px;
+  border: 1px dashed rgba(194, 138, 46, 0.85);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(194, 138, 46, 0.28),
+    rgba(194, 138, 46, 0.28) 3px,
+    rgba(194, 138, 46, 0.58) 3px,
+    rgba(194, 138, 46, 0.58) 6px
+  );
+}
+.barline-val-stack {
+  text-align: right;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.barline-virtual-note {
+  display: block;
+  font-size: 10.5px;
+  color: var(--amber);
+  font-weight: 600;
+}
+.tx-row-virtual-cc {
+  border-left: 3px dashed rgba(194, 138, 46, 0.75) !important;
+  background: rgba(194, 138, 46, 0.04);
+}
+.pill-virtual {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: rgba(194, 138, 46, 0.14);
+  color: var(--amber);
+  border: 1px dashed rgba(194, 138, 46, 0.55);
+  margin-left: 4px;
+}
+.amount.virtual-cc {
+  color: var(--amber);
+  opacity: 0.9;
+}

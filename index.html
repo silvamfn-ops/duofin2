@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css">
-  <title>DuoFin v2.6.7 — Gestão financeira a dois</title>
+  <title>DuoFin v2.6.8 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
@@ -185,6 +185,10 @@
         </div>
         <div class="accordion-body" style="margin-top:8px">
           <div id="cats"></div>
+        <div id="catsLegend" class="small" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;opacity:0.88">
+          <span style="display:inline-flex;align-items:center;gap:5px"><i style="display:inline-block;width:12px;height:8px;border-radius:99px;background:var(--gold)"></i> Pago em conta</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><i class="cc-virtual-swatch"></i> Despesa virtual (a crédito)</span>
+        </div>
         </div>
       </div>
 
@@ -1093,7 +1097,7 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.6.7 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.6.8 · Gestão financeira a dois</footer>
   </div>
   <script type="module" src="./js/app.js"></script>
 </body>

@@ -1,11 +1,11 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.7)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.8)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (v2.6.7)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.7)
-- css/styles.css           -> Pasta css/ (Estilos da aplicação)
-- js/config.js             -> Pasta js/ (Versão v2.6.7)
-- js/finance-engine.js     -> Pasta js/ (Motor financeiro)
+- index.html               -> Raiz do projeto (v2.6.8 + legenda de despesas pagas vs. despesas virtuais a crédito)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.8)
+- css/styles.css           -> Pasta css/ (Estilos diferenciados para despesas virtuais a crédito nas barras de categorias e movimentos)
+- js/config.js             -> Pasta js/ (Versão v2.6.8)
+- js/finance-engine.js     -> Pasta js/ (Motor financeiro alinhado com saldo bancário real)
 - js/supabase-sync.js      -> Pasta js/ (Sincronização cloud)
-- js/app.js                -> Pasta js/ (Corrige 'Despesas pagas' no Resumo para somar apenas saídas bancárias reais [débito + pagamentos de cartão] e recalcula automaticamente saldos transitados antigos que incluíam compras a crédito)
+- js/app.js                -> Pasta js/ (Despesas pagas no Resumo = débito + pagamentos de cartão; compras a crédito surgem como despesas virtuais diferenciadas na respetiva categoria e pagamento de cartão surge como despesa paga no ciclo em que é liquidado)

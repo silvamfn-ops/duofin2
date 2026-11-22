@@ -296,7 +296,7 @@ function render() {
   if ($('basicCycleProgressWrap')) {
     if (prefs.summaryLevel === 'basic' && totalBudget > 0) {
       $('basicCycleProgressWrap').hidden = false;
-      const pct = Math.min(100, (sum(ex) / totalBudget) * 100);
+      const pct = Math.min(100, ((sum(bankExItems) + ccPayTotal) / totalBudget) * 100);
       $('basicCycleProgressBar').style.width = `${pct}%`;
       $('basicCycleProgressLabel').textContent = `${Math.round(pct)}% do orçamento planeado (${eur(totalBudget)})`;
     } else {
@@ -335,11 +335,14 @@ function render() {
     const alertHtml = [];
     for (const c of activeCats) {
       if (c.budget > 0) {
-        const spent = sum(ex.filter(t => t.category === c.name));
+        const paidSpent = sum(bankExItems.filter(t => t.category === c.name));
+        const virtSpent = sum(ccExpItems.filter(t => t.category === c.name));
+        const spent = paidSpent + virtSpent;
         if (spent > c.budget) {
           const aid = `cat-over:${c.id || c.name}`;
           if (!isAlertDismissedForCycle(cycle.key, aid)) {
-            alertHtml.push(`<div class="alert red alert-dismissible"><span>⚠️ <b>${esc(c.name)}</b> ultrapassou o limite em ${eur(spent - c.budget)} (${eur(spent)} / ${eur(c.budget)}).</span><button type="button" class="alert-dismiss-btn" data-dismiss-alert="${esc(aid)}" data-dismiss-cycle="${esc(cycle.key)}" title="Ocultar este alerta até ao ciclo seguinte" aria-label="Fechar alerta">✕</button></div>`);
+            const detailTxt = virtSpent > 0 ? `${eur(paidSpent)} pago + ${eur(virtSpent)} a crédito` : `${eur(spent)}`;
+            alertHtml.push(`<div class="alert red alert-dismissible"><span>⚠️ <b>${esc(c.name)}</b> ultrapassou o limite em ${eur(spent - c.budget)} (${detailTxt} / ${eur(c.budget)}).</span><button type="button" class="alert-dismiss-btn" data-dismiss-alert="${esc(aid)}" data-dismiss-cycle="${esc(cycle.key)}" title="Ocultar este alerta até ao ciclo seguinte" aria-label="Fechar alerta">✕</button></div>`);
           }
         } else if (spent >= c.budget * 0.85) {
           const aid = `cat-warn:${c.id || c.name}`;
@@ -360,14 +363,33 @@ function render() {
     $('alerts').innerHTML = alertHtml.join('');
   }
 
-  $('cats').innerHTML = activeCats
-    .map(c => {
-      const v = sum(ex.filter(t => t.category === c.name));
-      const pct = c.budget ? Math.min(100, (v / c.budget) * 100) : 0;
-      const cls = c.budget ? (v > c.budget ? 'over' : v >= c.budget * 0.85 ? 'warn' : '') : '';
-      return `<div class="barline"><span class="barline-name">${esc(c.name)}</span><div class="bar"><i class="${cls}" style="width:${pct}%"></i></div><span class="barline-val"><b>${eur(v)}</b> / ${Math.round(c.budget)}€</span></div>`;
-    })
-    .join('');
+  const catRowsHtml = activeCats.map(c => {
+    const paidV = sum(bankExItems.filter(t => t.category === c.name));
+    const virtV = sum(ccExpItems.filter(t => t.category === c.name));
+    const totalV = paidV + virtV;
+    const paidPct = c.budget ? Math.min(100, (paidV / c.budget) * 100) : 0;
+    const virtPct = c.budget ? Math.min(Math.max(0, 100 - paidPct), (virtV / c.budget) * 100) : 0;
+    const cls = c.budget ? (paidV > c.budget ? 'over' : totalV > c.budget ? 'warn' : paidV >= c.budget * 0.85 ? 'warn' : '') : '';
+    const virtualNote = virtV > 0 ? `<span class="barline-virtual-note">+ ${eur(virtV)} virtual (créd.)</span>` : '';
+    return `<div class="barline">
+      <span class="barline-name" title="${esc(c.name)}">${esc(c.name)}</span>
+      <div class="bar-dual" title="Pago em conta: ${eur(paidV)}${virtV > 0 ? ` · Virtual a crédito: ${eur(virtV)}` : ''}">
+        <i class="bar-paid ${cls}" style="width:${paidPct}%"></i>
+        ${virtPct > 0 ? `<i class="bar-virtual" style="width:${virtPct}%"></i>` : ''}
+      </div>
+      <span class="barline-val barline-val-stack"><b>${eur(paidV)}</b> / ${Math.round(c.budget)}€${virtualNote}</span>
+    </div>`;
+  });
+
+  if (ccPayTotal > 0) {
+    catRowsHtml.push(`<div class="barline" style="padding-top:6px;border-top:1px dashed var(--line)">
+      <span class="barline-name" title="Pagamento de cartão de crédito">💳 Pagamento cartão</span>
+      <div class="bar-dual"><i class="bar-paid" style="width:100%"></i></div>
+      <span class="barline-val barline-val-stack"><b>${eur(ccPayTotal)}</b> <span class="small">pago</span></span>
+    </div>`);
+  }
+
+  $('cats').innerHTML = catRowsHtml.join('');
 
   const totalDebt = ccStats.reduce((a, c) => a + c.debt, 0);
   if ($('creditCardsSummaryCard')) {
@@ -517,16 +539,41 @@ function renderFilteredTransactions(cycles) {
 
 function renderTxRow(t) {
   const isProj = !!t.isProjected;
-  const cls = t.type === 'income' ? 'plus' : t.type === 'saving_withdraw' || t.type === 'cc_payment' || t.type === 'transfer' ? 'neutral' : 'minus';
-  const sign = t.type === 'income' ? '+' : t.type === 'saving' ? '↗' : t.type === 'saving_withdraw' ? '↙' : t.type === 'cc_payment' || t.type === 'transfer' ? '⇄' : '−';
-  const ccTag = t.credit_card_id ? ' · 💳 Cartão' : '';
+  const isVirtualCc = t.type === 'expense' && !!t.credit_card_id;
+  const cls = t.type === 'income'
+    ? 'plus'
+    : isVirtualCc
+      ? 'virtual-cc'
+      : t.type === 'saving_withdraw' || t.type === 'transfer'
+        ? 'neutral'
+        : 'minus';
+  const sign = t.type === 'income'
+    ? '+'
+    : t.type === 'saving'
+      ? '↗'
+      : t.type === 'saving_withdraw'
+        ? '↙'
+        : t.type === 'transfer'
+          ? '⇄'
+          : isVirtualCc
+            ? '💳'
+            : '−';
+  const ccBadge = isVirtualCc
+    ? '<span class="pill-virtual">Virtual · Cartão</span>'
+    : t.type === 'cc_payment'
+      ? ' · 💳 Pagamento de cartão'
+      : '';
   const statusTag = isProj ? ' · 📋 Caderno de encargos' : t.status === 'pending' ? ' · ⏳ Pendente' : t.status === 'skipped' ? ' · 🚫 Ignorado' : '';
   const clickAttr = isProj ? '' : `data-open-tx="${esc(t.id)}"`;
-  const rowCls = isProj ? 'item row tx-row-projected' : 'item row tx-clickable';
+  const rowCls = isProj
+    ? 'item row tx-row-projected'
+    : isVirtualCc
+      ? 'item row tx-clickable tx-row-virtual-cc'
+      : 'item row tx-clickable';
   return `<div class="${rowCls}" ${clickAttr}>
     <div style="min-width:0;flex:1">
-      <b>${esc(t.description)}</b>
-      <div class="small">${fmtDate(t.date)} · ${esc(t.category)} · ${esc(t.person)}${ccTag}${statusTag}</div>
+      <b>${esc(t.description)}</b>${ccBadge}
+      <div class="small">${fmtDate(t.date)} · ${esc(t.category)} · ${esc(t.person)}${statusTag}</div>
     </div>
     <b class="amount ${cls}" style="white-space:nowrap">${sign} ${eur(t.amount)}</b>
   </div>`;
