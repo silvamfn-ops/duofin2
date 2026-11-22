@@ -147,17 +147,44 @@ function checkAutomaticCycleRollover() {
 
   const handled = new Set(state.meta?.handled_rollovers || []);
   const latestClosed = closedCycles[closedCycles.length - 1];
-  if (handled.has(latestClosed.key)) return;
 
-  // Check if there is already a closure transaction for this cycle
+  // Check if there is already a closure transaction for this cycle; if its amount is stale (e.g. pre-v2.6.6 credit card rollover bug), update it automatically
   const closureTag = `cycle-close:${latestClosed.key}`;
-  const alreadyClosedTx = state.transactions.some(t => !t.deleted_at && t.occurrence_key === closureTag);
-  if (alreadyClosedTx) {
-    state.meta = state.meta || { category_rules: [], handled_rollovers: [] };
-    state.meta.handled_rollovers = [...handled, latestClosed.key];
-    saveLocalState(state);
+  const existingClosureTxs = state.transactions.filter(t => !t.deleted_at && t.occurrence_key === closureTag);
+  if (existingClosureTxs.length) {
+    const realCloseBal = Number(computeCycleBalance(state, latestClosed, latestClosed.end).toFixed(2));
+    const currentClosureTx = existingClosureTxs[0];
+    const currentSigned = currentClosureTx.type === 'income' ? Number(currentClosureTx.amount) : -Number(currentClosureTx.amount);
+    if (Math.abs(realCloseBal - currentSigned) >= 0.01 && currentClosureTx.category === 'Saldo transitado') {
+      const [ey, em, ed] = latestClosed.end.split('-').map(Number);
+      const nextDayObj = new Date(ey, em - 1, ed + 1);
+      const nextCycleStartDate = `${nextDayObj.getFullYear()}-${String(nextDayObj.getMonth() + 1).padStart(2, '0')}-${String(nextDayObj.getDate()).padStart(2, '0')}`;
+      if (Math.abs(realCloseBal) < 0.01) {
+        currentClosureTx.deleted_at = Date.now();
+        currentClosureTx.updated_at = Date.now();
+        enqueueOutbox('transactions', currentClosureTx);
+      } else {
+        currentClosureTx.date = nextCycleStartDate;
+        currentClosureTx.type = realCloseBal >= 0 ? 'income' : 'expense';
+        currentClosureTx.description = realCloseBal >= 0
+          ? `Saldo positivo transitado (${fmtDate(latestClosed.start)} – ${fmtDate(latestClosed.end)})`
+          : `Saldo negativo transitado (${fmtDate(latestClosed.start)} – ${fmtDate(latestClosed.end)})`;
+        currentClosureTx.amount = Math.abs(realCloseBal);
+        currentClosureTx.updated_at = Date.now();
+        enqueueOutbox('transactions', currentClosureTx);
+      }
+      saveLocalState(state);
+      sync.flushOutbox();
+    }
+    if (!handled.has(latestClosed.key)) {
+      state.meta = state.meta || { category_rules: [], handled_rollovers: [] };
+      state.meta.handled_rollovers = [...handled, latestClosed.key];
+      saveLocalState(state);
+    }
     return;
   }
+
+  if (handled.has(latestClosed.key)) return;
 
   const bal = Number(computeCycleBalance(state, latestClosed, latestClosed.end).toFixed(2));
   if (Math.abs(bal) < 0.01) {
@@ -241,12 +268,13 @@ function render() {
   const svOut = tx.filter(t => t.type === 'saving_withdraw' && isPaid(t));
   const ccPayItems = tx.filter(t => t.type === 'cc_payment' && isPaid(t));
   const ccPayTotal = sum(ccPayItems);
+  const bankExItems = ex.filter(t => !t.credit_card_id);
   const ccExpItems = ex.filter(t => t.credit_card_id);
   const ccExpTotal = sum(ccExpItems);
   const bal = computeCycleBalance(state, cycle, today);
 
   $('inc').textContent = eur(sum(inc));
-  $('exp').textContent = eur(sum(ex) + ccPayTotal);
+  $('exp').textContent = eur(sum(bankExItems) + ccPayTotal);
   $('bal').textContent = eur(bal);
   $('bal').className = bal < 0 ? 'minus' : '';
   $('savm').textContent = eur(sum(svIn) - sum(svOut));
