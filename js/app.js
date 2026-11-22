@@ -226,13 +226,27 @@ function drawResumoDonutChart(catSlices, totalAmount) {
   const totalEl = $('resumoDonutTotal');
   if (!panel || !canvas || !totalEl) return;
 
+  panel.hidden = false;
+  totalEl.textContent = eur(totalAmount || 0);
+
   const valid = (catSlices || []).filter(s => s.value > 0);
   if (!valid.length || totalAmount <= 0) {
-    panel.hidden = true;
+    const dpr0 = Math.min(window.devicePixelRatio || 1, 2);
+    const sz0 = 190;
+    canvas.width = sz0 * dpr0;
+    canvas.height = sz0 * dpr0;
+    canvas.style.width = `${sz0}px`;
+    canvas.style.height = `${sz0}px`;
+    const ctx0 = canvas.getContext('2d');
+    ctx0.scale(dpr0, dpr0);
+    ctx0.clearRect(0, 0, sz0, sz0);
+    ctx0.beginPath();
+    ctx0.arc(sz0 / 2, sz0 / 2, 74, 0, Math.PI * 2);
+    ctx0.strokeStyle = 'rgba(130, 150, 170, 0.22)';
+    ctx0.lineWidth = 22;
+    ctx0.stroke();
     return;
   }
-  panel.hidden = false;
-  totalEl.textContent = eur(totalAmount);
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const size = 190;
@@ -521,6 +535,7 @@ function render() {
   const people = getPeopleList(state);
   const peopleHtml = people.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
   $('person').innerHTML = peopleHtml;
+  if ($('qPerson')) $('qPerson').innerHTML = peopleHtml;
   if ($('ccOwner')) $('ccOwner').innerHTML = peopleHtml;
   if ($('recurrencePerson')) $('recurrencePerson').innerHTML = peopleHtml;
   if ($('csvDefaultPerson')) $('csvDefaultPerson').innerHTML = peopleHtml;
@@ -528,11 +543,18 @@ function render() {
 
   const catsHtml = activeCats.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
   $('category').innerHTML = catsHtml;
+  if ($('qCategory')) $('qCategory').innerHTML = catsHtml;
   if ($('recurrenceCategory')) $('recurrenceCategory').innerHTML = catsHtml;
   if ($('simCategory')) $('simCategory').innerHTML = catsHtml;
   $('filterCategory').innerHTML = '<option value="all">Todas as categorias</option>' + catsHtml;
 
   populateCreditCardSelects();
+  if ($('qCard')) {
+    const activeCards = (state.credit_cards || []).filter(c => !c.deleted_at);
+    $('qCard').innerHTML = '<option value="">Conta / Débito</option>' +
+      activeCards.map(c => `<option value="${esc(c.id)}">💳 ${esc(c.name)}</option>`).join('');
+  }
+  if ($('qDate') && !$('qDate').value) $('qDate').value = iso();
 
   $('savingGoal').innerHTML =
     '<option value="">Sem objetivo</option>' + activeGoals.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
@@ -2728,8 +2750,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  if ($('quickTxForm')) {
+    $('quickTxForm').onsubmit = e => {
+      e.preventDefault();
+      const rawAmt = String($('qAmount').value || '').replace(',', '.').trim();
+      const amount = Math.abs(parseFloat(rawAmt));
+      const description = ($('qDesc').value || '').trim();
+      if (!description || !Number.isFinite(amount) || amount <= 0) {
+        showToast('Preenche a descrição e um valor válido.', { type: 'error' });
+        return;
+      }
+      const type = $('qType').value || 'expense';
+      const cardId = type === 'expense' ? ($('qCard').value || null) : null;
+      const rec = {
+        id: crypto.randomUUID(),
+        household_id: sync.householdId || null,
+        date: $('qDate').value || iso(),
+        type,
+        description,
+        amount,
+        category: type === 'expense' ? ($('qCategory').value || 'Outros') : 'Outros',
+        person: $('qPerson').value || (state.household.adult1_name || 'Adulto 1'),
+        status: 'paid',
+        credit_card_id: cardId,
+        goal_id: null,
+        recurrence_id: null,
+        occurrence_key: null,
+        installment_group_id: null,
+        installment_index: null,
+        installment_total: null,
+        updated_at: Date.now(),
+        deleted_at: null
+      };
+      state.transactions.push(rec);
+      $('qDesc').value = '';
+      $('qAmount').value = '';
+      mutate('transactions', rec);
+      showToast('Movimento registado!', { type: 'success' });
+    };
+  }
+
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.7.1').then(reg => reg.update()).catch(() => {});
   }
 
   render();

@@ -842,7 +842,7 @@ body.privacy-masked .cc-spent-sub strong {
 }
 
 
-/* ================= LOGO & DESKTOP DASHBOARD LAYOUT (v2.7.0) ================= */
+/* ================= LOGO & DESKTOP DASHBOARD LAYOUT (v2.7.1) ================= */
 .brand-accent-2 {
   color: #48b888;
   margin-left: 2px;
@@ -872,9 +872,6 @@ body.privacy-masked .cc-spent-sub strong {
   align-items: center;
   justify-content: center;
 }
-.cats-donut-panel[hidden] {
-  display: none !important;
-}
 .cats-donut-center {
   position: absolute;
   inset: 0;
@@ -895,6 +892,9 @@ body.privacy-masked .cc-spent-sub strong {
   margin-top: 2px;
   color: var(--ink);
 }
+.desktop-quick-tx-card {
+  display: none;
+}
 
 @media (min-width: 760px) {
   .cats-dashboard-split {
@@ -907,34 +907,118 @@ body.privacy-masked .cc-spent-sub strong {
   }
 }
 
+/* ========== DESKTOP SIDEBAR + FINTECH DASHBOARD (>= 1040px) ========== */
 @media (min-width: 1040px) {
-  .wrap {
-    max-width: 1320px;
-    padding: 0 28px;
+  body {
+    background: #eef2f6;
+  }
+  html[data-theme="dark"] body {
+    background: #0a111a;
   }
 
+  .app-shell {
+    display: grid;
+    grid-template-columns: 248px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* Barra Lateral Fixa à Esquerda (Sidebar Desktop) */
   header {
+    position: sticky;
+    top: 0;
+    height: 100vh;
     border-radius: 0;
-    padding: 14px 0;
-    background: linear-gradient(135deg, #132c46 0%, #1b4363 60%, #205266 100%);
+    padding: 22px 16px;
+    background: linear-gradient(180deg, #10253c 0%, #173653 55%, #1d4963 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 4px 0 22px rgba(13, 28, 45, 0.12);
+    z-index: 40;
   }
 
   html[data-theme="dark"] header {
-    background: linear-gradient(135deg, #09131f 0%, #112438 60%, #15313e 100%);
+    background: linear-gradient(180deg, #08111c 0%, #0f1d2e 100%);
+    border-right: 1px solid var(--line);
   }
 
-  .nav-wrapper {
-    padding: 16px 0 10px;
-    border-bottom: 1px solid var(--line);
-    margin-bottom: 14px;
+  header .wrap.header-inner {
+    max-width: none;
+    padding: 0;
+    height: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 20px;
   }
 
-  /* Grelha panorâmica de 2 colunas assimétricas no Resumo */
+  .header-brand-block {
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  header .nav-wrapper {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  header nav#mainNav {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  header nav#mainNav button {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 12px;
+    padding: 11px 14px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  header nav#mainNav button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-color: transparent;
+  }
+
+  header nav#mainNav button.active {
+    background: linear-gradient(135deg, #3ba87a 0%, #2b8a64 100%);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 4px 12px rgba(43, 138, 100, 0.35);
+  }
+
+  header .header-actions {
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    justify-content: space-between;
+  }
+
+  header .version-badge {
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  /* Área Principal Panorâmica */
+  .wrap.main-content-wrap {
+    max-width: 1440px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 32px 48px;
+  }
+
+  /* Grelha Dashboard no Resumo */
   #resumo.view.active {
     display: grid;
-    grid-template-columns: minmax(0, 1.55fr) minmax(350px, 1fr);
-    column-gap: 20px;
-    row-gap: 4px;
+    grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr);
+    column-gap: 22px;
+    row-gap: 6px;
     align-items: start;
   }
 
@@ -945,8 +1029,16 @@ body.privacy-masked .cc-spent-sub strong {
     grid-column: 1 / -1;
   }
 
+  #resumo .cycle-header {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--card-radius);
+    padding: 14px 20px;
+    box-shadow: var(--shadow-sm);
+  }
+
   #resumo .summary-stats {
-    gap: 14px;
+    gap: 16px;
     margin-top: 14px;
   }
 
@@ -962,40 +1054,65 @@ body.privacy-masked .cc-spent-sub strong {
   }
 
   #resumo .stat b {
-    font-size: 23px;
+    font-size: 24px;
     letter-spacing: -0.02em;
   }
 
-  /* Coluna esquerda: Categorias, Evolução da Poupança, Cartões e Objetivos */
-  #resumo > .card:not(#recentCard) {
+  /* Coluna Esquerda: Categorias (Donut + Barras), Poupança, Cartões e Objetivos */
+  #resumo > .card {
     grid-column: 1;
     margin: 8px 0;
   }
 
-  /* Coluna direita fixa: Movimentos recentes do ciclo sempre visíveis ao lado */
-  #resumo #recentCard {
+  /* Coluna Direita: Lançamento Rápido + Movimentos Recentes */
+  #resumo .desktop-right-rail {
     grid-column: 2;
-    grid-row: 5 / span 6;
+    grid-row: 5 / span 8;
     position: sticky;
-    top: 16px;
-    margin: 8px 0;
-    max-height: calc(100vh - 36px);
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  #resumo .desktop-right-rail .card {
+    margin: 0;
+  }
+
+  .desktop-quick-tx-card {
+    display: block;
+    border-top: 4px solid #3ba87a;
+  }
+
+  .quick-tx-form label {
+    margin-top: 7px;
+    font-size: 12px;
+  }
+
+  .quick-tx-form input,
+  .quick-tx-form select {
+    padding: 8px 10px;
+    font-size: 13.5px;
+  }
+
+  #resumo #recentCard {
+    max-height: 460px;
     overflow-y: auto;
   }
 
-  /* Grelha panorâmica de 2 colunas também nas outras vistas principais */
+  /* Vistas secundárias em 2 colunas largas no PC */
   #movimentos.view.active,
   #graficos.view.active,
   #objetivo.view.active,
   #orcamento.view.active {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    gap: 18px;
+    gap: 20px;
     align-items: start;
   }
 
   #movimentos #txFormCard {
     position: sticky;
-    top: 16px;
+    top: 20px;
   }
 }

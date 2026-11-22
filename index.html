@@ -13,8 +13,8 @@
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <link rel="stylesheet" href="./css/styles.css">
-  <title>DuoFin 2 v2.7.0 — Gestão financeira a dois</title>
+  <link rel="stylesheet" href="./css/styles.css?v=2.7.1">
+  <title>DuoFin 2 v2.7.1 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
@@ -48,10 +48,11 @@
     </div>
   </div>
 
-  <header>
-    <div class="wrap header-inner">
-      <div>
-        <div class="brandline"><svg class="duofin-logo-svg" viewBox="0 0 64 64" width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <div class="app-shell">
+    <header>
+      <div class="wrap header-inner">
+        <div class="header-brand-block">
+          <div class="brandline"><svg class="duofin-logo-svg" viewBox="0 0 64 64" width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
     <linearGradient id="dfGreen" x1="8" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#48B888"/>
@@ -68,31 +69,33 @@
   <path d="M21.5 27.5C21.5 22.8 27.5 21.5 32 26.2C36.5 21.5 42.5 22.8 42.5 27.5" stroke="url(#dfGold)" stroke-width="4.2" stroke-linecap="round"/>
   <path d="M27.2 32.8C25.1 32.8 23.6 34.2 23.6 35.8C23.6 37.4 25.1 38.8 27.2 38.8C29.6 38.8 34.4 32.8 36.8 32.8C38.9 32.8 40.4 34.2 40.4 35.8C40.4 37.4 38.9 38.8 36.8 38.8C34.4 38.8 29.6 32.8 27.2 32.8Z" stroke="#163554" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg><h1>DuoFin<span class="brand-accent-2">2</span></h1></div>
-        <p>As nossas finanças. O nosso equilíbrio.</p>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="header-icon-btn" id="themeQuickToggleBtn" title="Alternar tema (Automático / Claro / Escuro)" aria-label="Alternar tema">🌓</button>
-        <button type="button" class="header-icon-btn" id="privacyToggleBtn" title="Ocultar ou mostrar valores monetários" aria-label="Modo privacidade">👁️</button>
-        <button type="button" class="header-icon-btn" id="lockAppHeaderBtn" title="Bloquear aplicação agora" aria-label="Bloquear aplicação" hidden>🔒</button>
-        <span class="version-badge" id="syncHeaderBadge" title="Estado de sincronização">○ Local</span>
-      </div>
-    </div>
-  </header>
+          <p>As nossas finanças. O nosso equilíbrio.</p>
+        </div>
 
-  <div class="wrap">
-    <div class="nav-wrapper" id="navWrapper">
-      <nav id="mainNav" aria-label="Navegação principal">
-        <button class="active" data-tab="resumo"><span class="nav-ico" aria-hidden="true">🏠</span><span class="nav-lbl">Resumo</span></button>
-        <button data-tab="movimentos"><span class="nav-ico" aria-hidden="true">💸</span><span class="nav-lbl">Movimentos</span></button>
-        <button data-tab="graficos"><span class="nav-ico" aria-hidden="true">📊</span><span class="nav-lbl">Gráficos</span></button>
-        <button data-tab="objetivo"><span class="nav-ico" aria-hidden="true">🎯</span><span class="nav-lbl">Objetivos</span></button>
-        <button type="button" class="mobile-more-btn" id="mobileMoreBtn" aria-expanded="false" aria-controls="mobileMoreDrawer"><span class="nav-ico" aria-hidden="true">☰</span><span class="nav-lbl">Mais</span><span class="nav-badge" id="mobileMoreBadge" hidden></span></button>
-        <button class="desktop-only-tab" data-tab="recorrentes" id="navRecorrentesBtn">Encargos <span class="nav-badge" id="desktopRecBadge" hidden></span></button>
-        <button class="desktop-only-tab" data-tab="calendario">Calendário</button>
-        <button class="desktop-only-tab" data-tab="orcamento">Orçamento</button>
-        <button class="desktop-only-tab" data-tab="dados">Dados</button>
-      </nav>
-    </div>
+        <div class="nav-wrapper" id="navWrapper">
+          <nav id="mainNav" aria-label="Navegação principal">
+            <button class="active" data-tab="resumo"><span class="nav-ico" aria-hidden="true">🏠</span><span class="nav-lbl">Resumo</span></button>
+            <button data-tab="movimentos"><span class="nav-ico" aria-hidden="true">💸</span><span class="nav-lbl">Movimentos</span></button>
+            <button data-tab="graficos"><span class="nav-ico" aria-hidden="true">📊</span><span class="nav-lbl">Gráficos</span></button>
+            <button data-tab="objetivo"><span class="nav-ico" aria-hidden="true">🎯</span><span class="nav-lbl">Objetivos</span></button>
+            <button type="button" class="mobile-more-btn" id="mobileMoreBtn" aria-expanded="false" aria-controls="mobileMoreDrawer"><span class="nav-ico" aria-hidden="true">☰</span><span class="nav-lbl">Mais</span><span class="nav-badge" id="mobileMoreBadge" hidden></span></button>
+            <button class="desktop-only-tab" data-tab="recorrentes" id="navRecorrentesBtn"><span class="nav-ico" aria-hidden="true">🔁</span><span class="nav-lbl">Encargos</span> <span class="nav-badge" id="desktopRecBadge" hidden></span></button>
+            <button class="desktop-only-tab" data-tab="calendario"><span class="nav-ico" aria-hidden="true">📅</span><span class="nav-lbl">Calendário</span></button>
+            <button class="desktop-only-tab" data-tab="orcamento"><span class="nav-ico" aria-hidden="true">⚖️</span><span class="nav-lbl">Orçamento</span></button>
+            <button class="desktop-only-tab" data-tab="dados"><span class="nav-ico" aria-hidden="true">⚙️</span><span class="nav-lbl">Dados</span></button>
+          </nav>
+        </div>
+
+        <div class="header-actions">
+          <button type="button" class="header-icon-btn" id="themeQuickToggleBtn" title="Alternar tema (Automático / Claro / Escuro)" aria-label="Alternar tema">🌓</button>
+          <button type="button" class="header-icon-btn" id="privacyToggleBtn" title="Ocultar ou mostrar valores monetários" aria-label="Modo privacidade">👁️</button>
+          <button type="button" class="header-icon-btn" id="lockAppHeaderBtn" title="Bloquear aplicação agora" aria-label="Bloquear aplicação" hidden>🔒</button>
+          <span class="version-badge" id="syncHeaderBadge" title="Estado de sincronização">○ Local</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap main-content-wrap">
 
     <!-- Gaveta deslizante "Mais" para ecrãs mobile (< 680px) -->
     <div id="mobileMoreBackdrop" class="mobile-drawer-backdrop" hidden></div>
@@ -217,7 +220,7 @@
         </div>
         <div class="accordion-body" style="margin-top:8px">
           <div class="cats-dashboard-split">
-            <div class="cats-donut-panel" id="catsDonutPanel" hidden>
+            <div class="cats-donut-panel" id="catsDonutPanel">
               <canvas id="resumoDonutCanvas" width="190" height="190" aria-label="Distribuição de despesas por categoria"></canvas>
               <div class="cats-donut-center">
                 <span class="small">Total ciclo</span>
@@ -247,13 +250,64 @@
         <p class="small">Saldo acumulado das transferências de poupança menos resgates registados em cada ciclo.</p>
       </div>
 
-      <div class="card" id="recentCard">
+      <aside class="desktop-right-rail">
+        <div class="card desktop-quick-tx-card" id="desktopQuickTxCard">
+          <div class="row" style="margin-bottom:8px">
+            <h2 style="margin:0">⚡ Lançamento rápido</h2>
+            <span class="pill">Direto ao ciclo</span>
+          </div>
+          <form id="quickTxForm" class="quick-tx-form">
+            <div class="grid">
+              <div>
+                <label for="qDate">Data</label>
+                <input id="qDate" type="date" required>
+              </div>
+              <div>
+                <label for="qType">Tipo</label>
+                <select id="qType">
+                  <option value="expense">Despesa</option>
+                  <option value="income">Rendimento</option>
+                  <option value="saving">Poupança</option>
+                  <option value="cc_payment">Pag. Cartão</option>
+                </select>
+              </div>
+            </div>
+            <label for="qDesc">Descrição</label>
+            <input id="qDesc" required autocomplete="off" placeholder="Ex.: Supermercado, Combustível...">
+            <div class="grid">
+              <div>
+                <label for="qAmount">Valor (€)</label>
+                <input id="qAmount" type="text" inputmode="decimal" required placeholder="0,00">
+              </div>
+              <div>
+                <label for="qCategory">Categoria</label>
+                <select id="qCategory"></select>
+              </div>
+            </div>
+            <div class="grid">
+              <div>
+                <label for="qPerson">Quem</label>
+                <select id="qPerson"></select>
+              </div>
+              <div>
+                <label for="qCard">Pagamento</label>
+                <select id="qCard"><option value="">Conta / Débito</option></select>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:10px;justify-content:flex-end">
+              <button type="submit" class="primary" style="width:100%">+ Registar movimento</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card" id="recentCard">
         <div class="row" style="margin-bottom:6px">
           <h2 style="margin:0" id="recentCardTitle">Movimentos recentes deste ciclo</h2>
           <span class="small summary-detailed-only">Toca num movimento para ver/editar</span>
         </div>
         <div id="recent"></div>
-      </div>
+        </div>
+      </aside>
     </section>
 
     <!-- ================= MOVIMENTOS ================= -->
@@ -1145,8 +1199,9 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.7.0 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.7.1 · Gestão financeira a dois</footer>
+    </div>
   </div>
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./js/app.js?v=2.7.1"></script>
 </body>
 </html>
