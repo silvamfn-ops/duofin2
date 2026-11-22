@@ -239,20 +239,25 @@ function render() {
   const inc = tx.filter(t => t.type === 'income' && isPaid(t));
   const svIn = tx.filter(t => t.type === 'saving' && isPaid(t));
   const svOut = tx.filter(t => t.type === 'saving_withdraw' && isPaid(t));
+  const ccPayItems = tx.filter(t => t.type === 'cc_payment' && isPaid(t));
+  const ccPayTotal = sum(ccPayItems);
   const ccExpItems = ex.filter(t => t.credit_card_id);
   const ccExpTotal = sum(ccExpItems);
-  const bal = computeCycleBalance(state, cycle, today) + ccExpTotal;
+  const bal = computeCycleBalance(state, cycle, today);
 
   $('inc').textContent = eur(sum(inc));
-  $('exp').textContent = eur(sum(ex));
+  $('exp').textContent = eur(sum(ex) + ccPayTotal);
   $('bal').textContent = eur(bal);
   $('bal').className = bal < 0 ? 'minus' : '';
   $('savm').textContent = eur(sum(svIn) - sum(svOut));
 
   if ($('ccSpentLine')) {
-    if (ccExpTotal > 0) {
+    const parts = [];
+    if (ccExpTotal > 0) parts.push(`💳 Compras a crédito: <strong>${eur(ccExpTotal)}</strong>`);
+    if (ccPayTotal > 0) parts.push(`💳 Cartão pago no ciclo: <strong>${eur(ccPayTotal)}</strong>`);
+    if (parts.length) {
       $('ccSpentLine').hidden = false;
-      $('ccSpentLine').innerHTML = `💳 A crédito no ciclo: <strong>${eur(ccExpTotal)}</strong>`;
+      $('ccSpentLine').innerHTML = parts.join(' · ');
     } else {
       $('ccSpentLine').hidden = true;
       $('ccSpentLine').innerHTML = '';
@@ -1073,8 +1078,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       confirmBtn.hidden = false;
       alertBox.className = 'alert good';
-      alertBox.innerHTML = `Saldo final positivo (sobra): <b>+${eur(bal)}</b>`;
-      expText.textContent = 'Escolhe o destino desta sobra para evitar incongruências com o saldo real da conta bancária:';
+      alertBox.innerHTML = `Saldo bancário real no fecho (sobra): <b>+${eur(bal)}</b>`;
+      expText.textContent = 'Compras a crédito não abatidas mantêm-se na dívida do cartão sem reduzir o dinheiro em conta. Escolhe o destino desta sobra bancária:';
       posOpts.hidden = false;
       const defaultRadio = document.querySelector('input[name="cycleCloseAction"][value="carryover"]');
       if (defaultRadio) defaultRadio.checked = true;
@@ -1830,9 +1835,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const cycles = buildCycles(state);
       const cycle = cycles.find(c => c.key === selectedCycleKey) || currentCycle(cycles);
       const today = iso();
-      const tx = cycleTransactions(state, cycle).filter(t => t.date <= today);
-      const ccExpTotal = sum(tx.filter(t => t.type === 'expense' && isPaid(t) && t.credit_card_id));
-      const curBal = Number((computeCycleBalance(state, cycle, today) + ccExpTotal).toFixed(2));
+      const curBal = Number(computeCycleBalance(state, cycle, today).toFixed(2));
       $('recCurrentAppBal').textContent = eur(curBal);
       $('recCurrentAppBal').dataset.val = String(curBal);
       $('recRealBankBalance').value = '';

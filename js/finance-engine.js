@@ -137,12 +137,12 @@ export function cycleTransactions(state, c) {
 
 export function computeCycleBalance(state, c, upToDate = iso()) {
   const tx = cycleTransactions(state, c).filter(t => t.date <= upToDate);
-  const ex = tx.filter(t => t.type === 'expense' && isPaid(t));
+  const bankEx = tx.filter(t => t.type === 'expense' && isPaid(t) && !t.credit_card_id);
   const ccPay = tx.filter(t => t.type === 'cc_payment' && isPaid(t));
   const inc = tx.filter(t => t.type === 'income' && isPaid(t));
   const svIn = tx.filter(t => t.type === 'saving' && isPaid(t));
   const svOut = tx.filter(t => t.type === 'saving_withdraw' && isPaid(t));
-  return sum(inc) + sum(svOut) - sum(ex) - sum(ccPay) - sum(svIn);
+  return sum(inc) + sum(svOut) - sum(bankEx) - sum(ccPay) - sum(svIn);
 }
 
 export function computeCycleProjection(state, cycle, currentBalance) {
@@ -152,9 +152,9 @@ export function computeCycleProjection(state, cycle, currentBalance) {
   const estimatedCycleEnd = cycle.open ? addDays(addMonthsClamp(cycle.start, 1), -1) : cycle.end;
   const horizonEnd = estimatedCycleEnd > today ? estimatedCycleEnd : today;
 
-  const pendingInCycle = cycleTransactions(state, cycle).filter(t => t.type === 'expense' && t.status === 'pending' && t.date <= today);
+  const pendingInCycle = cycleTransactions(state, cycle).filter(t => t.type === 'expense' && t.status === 'pending' && !t.credit_card_id && t.date <= today);
   const scheduledFutureExp = state.transactions.filter(
-    t => !t.deleted_at && (t.type === 'expense' || t.type === 'cc_payment') && t.status !== 'skipped' && t.date > today && t.date <= horizonEnd
+    t => !t.deleted_at && ((t.type === 'expense' && !t.credit_card_id) || t.type === 'cc_payment') && t.status !== 'skipped' && t.date > today && t.date <= horizonEnd
   );
   const scheduledFutureSavOut = state.transactions.filter(
     t => !t.deleted_at && t.type === 'saving' && t.status !== 'skipped' && t.date > today && t.date <= horizonEnd

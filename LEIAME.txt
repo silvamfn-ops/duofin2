@@ -1,15 +1,15 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.5)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.6.6)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (v2.6.5)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.5)
+- index.html               -> Raiz do projeto (v2.6.6)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.6.6)
 - css/styles.css           -> Pasta css/ (Estilos da aplicação)
-- js/config.js             -> Pasta js/ (Versão v2.6.5)
-- js/finance-engine.js     -> Pasta js/ (Motor financeiro)
+- js/config.js             -> Pasta js/ (Versão v2.6.6)
+- js/finance-engine.js     -> Pasta js/ (Saldo bancário real e transição de ciclo excluem compras a crédito por pagar, deduzindo apenas despesas pagas a débito e pagamentos/abatimentos reais de cartão)
 - js/supabase-sync.js      -> Pasta js/ (Sincronização cloud)
-- js/app.js                -> Pasta js/ (Corrige ReferenceError 'people is not defined' no render() após criar/sincronizar orçamento)
+- js/app.js                -> Pasta js/ (Alinha Resumo, Reconciliação e Fecho de Ciclo com o saldo bancário real)
 
-2. SUPABASE (APENAS SE AINDA NÃO EXECUTASTE):
-Se ainda não executaste o script SQL no SQL Editor do Supabase, executa o ficheiro:
-- supabase_v260_caderno_encargos.sql
+2. NOTA SOBRE CICLO ANTERIOR JÁ TRANSITADO COM VALOR NEGATIVO:
+Se o ciclo anterior já tinha criado um movimento automático de "Saldo negativo transitado" antes desta atualização:
+- Basta apagar esse movimento de "Saldo negativo transitado" no separador Movimentos, selecionar o ciclo anterior e clicar em "Fechar / Transitar ciclo" para gerar automaticamente o novo saldo positivo real (ex.: +31,00 €).
