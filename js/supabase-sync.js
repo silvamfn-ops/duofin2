@@ -13,12 +13,34 @@ const TABLE_COLUMNS = {
   transactions: ['id', 'household_id', 'date', 'type', 'description', 'amount', 'category', 'person', 'status', 'credit_card_id', 'goal_id', 'recurrence_id', 'occurrence_key', 'installment_group_id', 'counts_for_cycle', 'updated_at', 'deleted_at']
 };
 
+const NULLABLE_FIELDS = new Set([
+  'credit_card_id', 'goal_id', 'recurrence_id', 'occurrence_key',
+  'installment_group_id', 'deadline', 'end_month', 'deleted_at'
+]);
+
 function sanitizeRecord(table, raw) {
   const cols = TABLE_COLUMNS[table];
   if (!cols) return { ...raw };
   const clean = {};
   for (const col of cols) {
-    if (raw[col] !== undefined) clean[col] = raw[col];
+    if (raw[col] !== undefined) {
+      let val = raw[col];
+      if (NULLABLE_FIELDS.has(col) && (val === '' || val === undefined)) {
+        val = null;
+      }
+      if (col === 'updated_at') {
+        val = Math.floor(Number(val) || Date.now());
+      } else if (col === 'deleted_at') {
+        val = val ? Math.floor(Number(val)) : null;
+      } else if (col === 'day_of_month') {
+        val = Math.max(1, Math.min(31, parseInt(val, 10) || 1));
+      } else if (col === 'sort_order') {
+        val = parseInt(val, 10) || 999;
+      } else if (col === 'cycle_grouping_days') {
+        val = parseInt(val, 10) || 14;
+      }
+      clean[col] = val;
+    }
   }
   return clean;
 }
@@ -40,6 +62,21 @@ export class DuoFinSync {
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     this.lastSyncAt = null;
+    this.lastOutboxErrors = [];
+  }
+
+  clearAllOutbox() {
+    const queue = getOutbox();
+    if (!queue.length) return;
+    const keys = queue.map(item => {
+      const pk = item.table === 'household_meta' || item.table === 'households'
+        ? (this.householdId || item.record?.household_id || item.record?.id)
+        : item.record?.id;
+      return `${item.table}:${pk}:${item.queuedAt}`;
+    });
+    clearOutboxItems(keys);
+    this.lastOutboxErrors = [];
+    this.onStatusChange('synced', `Fila limpa (${this.user?.email || 'ligado'})`);
   }
 
   getConfig() {
@@ -260,6 +297,7 @@ export class DuoFinSync {
     this.isFlushing = true;
     this.onStatusChange('syncing', `A sincronizar ${queue.length} alteração(ões)...`);
     const processed = [];
+    const failedDetails = [];
     let failedCount = 0;
     let lastErrorMsg = '';
 
@@ -315,8 +353,9 @@ export class DuoFinSync {
               processed.push(`${item.table}:${pk}:${item.queuedAt}`);
             } else {
               failedCount++;
-              lastErrorMsg = itemErr.message;
-              console.warn(`Erro sync ${table}:`, itemErr.message);
+              lastErrorMsg = `${table}: ${itemErr.message}`;
+              failedDetails.push({ table, id: item.record?.id || item.record?.description || '?', message: itemErr.message });
+              console.warn(`Erro sync ${table}:`, itemErr.message, clean);
             }
           }
         }
@@ -324,6 +363,7 @@ export class DuoFinSync {
 
       if (processed.length) clearOutboxItems(processed);
 
+      this.lastOutboxErrors = failedDetails;
       if (failedCount > 0) {
         this.onStatusChange('offline', `${failedCount} pendente(s): ${lastErrorMsg || 'a repetir sincronização...'}`);
         this.scheduleOutboxRetry();

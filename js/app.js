@@ -64,10 +64,27 @@ function mutate(table, record) {
 function updateHouseholdPanels() {
   if ($('cloudLogout')) $('cloudLogout').hidden = !sync.user;
   if ($('householdPanel')) $('householdPanel').hidden = !sync.user;
+  const outboxLen = getOutbox().length;
   if ($('householdInfo')) {
     $('householdInfo').textContent = sync.householdId
-      ? `Orçamento ligado (${sync.householdId.slice(0, 8)}…) · ${getOutbox().length} alteração(ões) na fila`
+      ? `Orçamento ligado (${sync.householdId.slice(0, 8)}…) · ${outboxLen} alteração(ões) na fila`
       : 'Cria um orçamento do casal ou insere o código de convite recebido.';
+  }
+  if ($('clearOutboxBtn')) {
+    $('clearOutboxBtn').hidden = outboxLen === 0;
+  }
+  if ($('outboxDiagnosticBox')) {
+    if (outboxLen > 0 && sync.lastOutboxErrors && sync.lastOutboxErrors.length) {
+      const sample = sync.lastOutboxErrors
+        .slice(0, 3)
+        .map(e => `• [${esc(e.table)}] ${esc(e.message)}`)
+        .join('<br>');
+      $('outboxDiagnosticBox').hidden = false;
+      $('outboxDiagnosticBox').innerHTML = `<strong>Motivo dos itens retidos na fila:</strong><br>${sample}`;
+    } else {
+      $('outboxDiagnosticBox').hidden = true;
+      $('outboxDiagnosticBox').innerHTML = '';
+    }
   }
 }
 
@@ -2309,6 +2326,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
   }
+  if ($('clearOutboxBtn')) {
+    $('clearOutboxBtn').onclick = () => {
+      if (!confirm('Remover os itens pendentes presos na fila de sincronização deste dispositivo?')) return;
+      sync.clearAllOutbox();
+      showToast('Fila de sincronização limpa!', { type: 'success' });
+    };
+  }
 
   $('importLegacyBackup').onchange = async e => {
     const file = e.target.files[0];
@@ -2572,6 +2596,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!confirm('Confirmação final: Limpar mesmo toda a base de dados e começar de novo?')) return;
 
       const now = Date.now();
+      sync.clearAllOutbox();
       if (sync.householdId) {
         (state.transactions || []).forEach(t => { if (!t.deleted_at) { t.deleted_at = now; t.updated_at = now; enqueueOutbox('transactions', t); } });
         (state.credit_cards || []).forEach(c => { if (!c.deleted_at) { c.deleted_at = now; c.updated_at = now; enqueueOutbox('credit_cards', c); } });
