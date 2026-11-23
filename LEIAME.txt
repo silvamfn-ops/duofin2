@@ -1,19 +1,19 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.7.6)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.7.7)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.7.6 + Ecrã de Arranque / Splash Screen com o logótipo DuoFin 2 + apple-touch-startup-image para iOS)
-- manifest.webmanifest          -> Raiz do projeto (Manifesto PWA)
-- sw.js                         -> Raiz do projeto (Atualiza cache PWA para v2.7.6 e inclui as imagens de arranque)
-- css/styles.css                -> Pasta css/ (Estilos do ecrã de arranque azul-marinho #12263d + indicador de carregamento)
-- js/config.js                  -> Pasta js/ (Versão v2.7.6)
-- js/finance-engine.js          -> Pasta js/ (Motor financeiro)
-- js/supabase-sync.js           -> Pasta js/ (Sincronização Supabase)
-- js/app.js                     -> Pasta js/ (Transição suave do ecrã de arranque após carregar os dados)
-- icons/splash-logo.png         -> Pasta icons/ (Imagem oficial DuoFin 2 com transparência usada no ecrã de abertura)
-- icons/splash-ios.png          -> Pasta icons/ (Imagem de arranque nativa para ecrã bloqueado/abertura no iPhone)
-- icons/icon-180.png            -> Pasta icons/ (Ícone Apple Touch 180x180)
-- icons/icon-192.png            -> Pasta icons/ (Ícone PWA 192x192)
-- icons/icon-192-maskable.png   -> Pasta icons/ (Ícone PWA Maskable 192x192)
-- icons/icon-512.png            -> Pasta icons/ (Ícone PWA 512x512)
-- icons/icon-512-maskable.png   -> Pasta icons/ (Ícone PWA Maskable 512x512)
+- index.html                    -> Raiz do projeto (v2.7.7 + URLs versionadas nos ícones e manifesto para forçar atualização imediata no telemóvel)
+- manifest.webmanifest          -> Raiz do projeto (Ícones com ?v=2.7.7 e fundo #12263d para eliminar o ícone antigo do arranque nativo)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.7.7)
+- css/styles.css                -> Pasta css/
+- js/config.js                  -> Pasta js/ (Versão v2.7.7)
+- js/finance-engine.js          -> Pasta js/
+- js/supabase-sync.js           -> Pasta js/
+- js/app.js                     -> Pasta js/
+- icons/                        -> Pasta icons/ (Inclui ícones maskable otimizados sobre fundo #12263d sem bordas brancas)
+
+2. NOTA IMPORTANTE NO TELEMÓVEL (ANDROID / iOS):
+O Android e o iOS guardam o ícone da aplicação instalada numa cache própria do sistema operativo (WebAPK / SpringBoard) que só é renovada quando o atalho no ecrã principal é reinstalado:
+- Remove o atalho antigo da DuoFin 2 do ecrã principal do telemóvel;
+- Abre o link no navegador, atualiza a página e toca novamente em "Adicionar ao ecrã principal" / "Instalar aplicação".
+A partir desse momento, o arranque nativo passa a usar exclusivamente o novo ícone de alta qualidade e abre diretamente no novo ecrã de arranque!
