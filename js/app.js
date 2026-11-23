@@ -623,7 +623,14 @@ function renderFilteredTransactions(cycles) {
   else if (quickStatusFilter === 'skipped') list = list.filter(t => t.status === 'skipped');
   else if (quickStatusFilter === 'installments') list = list.filter(t => !!t.installment_group_id);
 
-  list.sort((a, b) => b.date.localeCompare(a.date));
+  const sortDir = $('movementSortOrder') ? $('movementSortOrder').value : 'desc';
+  list.sort((a, b) => {
+    const cmp = String(a.date || '').localeCompare(String(b.date || ''));
+    if (cmp !== 0) return sortDir === 'asc' ? cmp : -cmp;
+    const ua = Number(a.updated_at || 0);
+    const ub = Number(b.updated_at || 0);
+    return sortDir === 'asc' ? ua - ub : ub - ua;
+  });
 
   const hasFilters = tp !== 'all' || df || dt || q || cat !== 'all' || per !== 'all' || quickStatusFilter !== 'all';
   $('resetFiltersBtn').hidden = !hasFilters;
@@ -1164,10 +1171,41 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.onclick = () => switchTab(btn.dataset.drawerTab);
   });
 
-  $('quickAddFab').onclick = () => {
-    switchTab('movimentos');
-    $('desc').focus();
-  };
+  function openAddTxModal(focusField = true) {
+    const modal = $('addTxModal');
+    if (!modal) return;
+    if (!$('date').value) $('date').value = iso();
+    modal.hidden = false;
+    if (focusField && $('desc')) {
+      setTimeout(() => $('desc').focus(), 40);
+    }
+  }
+
+  function closeAddTxModal() {
+    const modal = $('addTxModal');
+    if (modal) modal.hidden = true;
+  }
+
+  $('quickAddFab').onclick = () => openAddTxModal(true);
+  if ($('openNewTxModalBtn')) {
+    $('openNewTxModalBtn').onclick = () => openAddTxModal(true);
+  }
+  if ($('closeAddTxModalBtn')) {
+    $('closeAddTxModalBtn').onclick = closeAddTxModal;
+  }
+  if ($('cancelAddTxModalBtn')) {
+    $('cancelAddTxModalBtn').onclick = closeAddTxModal;
+  }
+  if ($('addTxModal')) {
+    $('addTxModal').onclick = e => {
+      if (e.target === $('addTxModal')) closeAddTxModal();
+    };
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('addTxModal') && !$('addTxModal').hidden) {
+      closeAddTxModal();
+    }
+  });
 
   document.querySelectorAll('[data-summary-level-btn]').forEach(btn => {
     btn.onclick = () => {
@@ -1506,6 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('categoryAutoHint').textContent = '';
     $('installmentsOptions').hidden = true;
     $('type').dispatchEvent(new Event('change'));
+    closeAddTxModal();
     render();
     sync.flushOutbox();
     haptic([14, 25, 14]);
@@ -1513,7 +1552,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAutomaticCycleRollover();
   };
 
-  ['movementCycle', 'filter', 'filterDateFrom', 'filterDateTo', 'filterSearch', 'filterCategory', 'filterPerson'].forEach(id => {
+  ['movementCycle', 'filter', 'filterDateFrom', 'filterDateTo', 'filterSearch', 'filterCategory', 'filterPerson', 'movementSortOrder'].forEach(id => {
     $(id).addEventListener('input', () => {
       if (id === 'movementCycle') movementCycleKey = $('movementCycle').value;
       renderFilteredTransactions(buildCycles(state));
@@ -1986,7 +2025,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('simConvertToTxBtn').onclick = () => {
     const amount = Number($('simAmount').value) || 0;
     const n = Number($('simInstallments').value) || 1;
-    switchTab('movimentos');
+    openAddTxModal(false);
     $('type').value = 'expense';
     $('type').dispatchEvent(new Event('change'));
     $('desc').value = $('simDesc').value.trim() || 'Compra planeada';
@@ -3029,7 +3068,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.7.7').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.7.8').then(reg => reg.update()).catch(() => {});
   }
 
   render();
