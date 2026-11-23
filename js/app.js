@@ -568,13 +568,16 @@ function render() {
   $('budgetFields').innerHTML = activeCats
     .map(
       (c, idx) =>
-        `<div class="item row" style="gap:6px">
-          <div class="row" style="gap:4px">
-            <button type="button" class="cat-order-btn" data-move-cat="${esc(c.id)}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Subir categoria">↑</button>
-            <button type="button" class="cat-order-btn" data-move-cat="${esc(c.id)}" data-dir="1" ${idx === activeCats.length - 1 ? 'disabled' : ''} title="Descer categoria">↓</button>
-            <span style="margin-left:4px">${esc(c.name)}</span>
+        `<div class="item row cat-edit-row" style="gap:8px;flex-wrap:nowrap">
+          <div class="row" style="gap:4px;flex:1 1 auto;min-width:0">
+            <button type="button" class="cat-order-btn" data-move-cat="${esc(c.id)}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Subir categoria" aria-label="Subir ${esc(c.name)}">↑</button>
+            <button type="button" class="cat-order-btn" data-move-cat="${esc(c.id)}" data-dir="1" ${idx === activeCats.length - 1 ? 'disabled' : ''} title="Descer categoria" aria-label="Descer ${esc(c.name)}">↓</button>
+            <input data-cat-name-id="${esc(c.id)}" type="text" maxlength="50" value="${esc(c.name)}" aria-label="Nome da categoria ${esc(c.name)}" style="flex:1 1 auto;min-width:95px;padding:7px 9px;font-weight:600">
           </div>
-          <input data-cat-budget-id="${esc(c.id)}" type="number" step="0.01" value="${Number(c.budget) || 0}" style="width:110px;text-align:right">
+          <div class="row" style="gap:6px;flex-shrink:0">
+            <input data-cat-budget-id="${esc(c.id)}" type="number" min="0" step="0.01" value="${Number(c.budget) || 0}" aria-label="Limite de ${esc(c.name)}" title="Limite por ciclo (€)" style="width:96px;text-align:right;padding:7px 8px">
+            <button type="button" class="danger" data-del-cat="${esc(c.id)}" title="Apagar categoria ${esc(c.name)}" aria-label="Apagar categoria ${esc(c.name)}" style="padding:7px 10px;font-size:13px">🗑️</button>
+          </div>
         </div>`
     )
     .join('');
@@ -2187,33 +2190,179 @@ document.addEventListener('DOMContentLoaded', () => {
         render();
         sync.flushOutbox();
       }
+      return;
+    }
+
+    const delCatBtn = e.target.closest('[data-del-cat]');
+    if (delCatBtn) {
+      const catId = delCatBtn.dataset.delCat;
+      const activeCats = (state.categories || []).filter(c => !c.deleted_at);
+      if (activeCats.length <= 1) {
+        showToast('Tem de existir pelo menos uma categoria ativa.', { type: 'error' });
+        return;
+      }
+      const targetCat = activeCats.find(c => String(c.id) === String(catId));
+      if (!targetCat) return;
+
+      const fallbackCat =
+        activeCats.find(c => String(c.id) !== String(catId) && String(c.name).trim().toLowerCase() === 'outros') ||
+        activeCats.find(c => String(c.id) !== String(catId));
+      const fallbackName = fallbackCat ? fallbackCat.name : 'Outros';
+
+      const affectedTx = (state.transactions || []).filter(t => !t.deleted_at && t.category === targetCat.name);
+      const affectedRec = (state.recurring_expenses || []).filter(r => !r.deleted_at && r.category === targetCat.name);
+      const affectedRules = (state.meta?.category_rules || []).filter(r => r.category === targetCat.name);
+
+      const extraMsg =
+        affectedTx.length || affectedRec.length || affectedRules.length
+          ? `
+
+Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${affectedRules.length} regra(s) associados que serão reatribuídos automaticamente para "${fallbackName}".`
+          : '';
+
+      if (!confirm(`Tens a certeza que queres apagar a categoria "${targetCat.name}"?${extraMsg}`)) return;
+
+      const now = Date.now();
+      targetCat.deleted_at = now;
+      targetCat.updated_at = now;
+      enqueueOutbox('categories', targetCat);
+
+      affectedTx.forEach(t => {
+        t.category = fallbackName;
+        t.updated_at = now;
+        enqueueOutbox('transactions', t);
+      });
+      affectedRec.forEach(r => {
+        r.category = fallbackName;
+        r.updated_at = now;
+        enqueueOutbox('recurring_expenses', r);
+      });
+      if (affectedRules.length && state.meta) {
+        affectedRules.forEach(r => {
+          r.category = fallbackName;
+        });
+        state.meta.updated_at = now;
+        if (sync.householdId) {
+          enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+        }
+      }
+
+      saveLocalState(state);
+      render();
+      sync.flushOutbox();
+      showToast(`Categoria "${targetCat.name}" apagada.`, { type: 'success' });
     }
   });
 
   $('budgetForm').onsubmit = e => {
     e.preventDefault();
-    document.querySelectorAll('[data-cat-budget-id]').forEach(inp => {
-      const cat = state.categories.find(c => c.id === inp.dataset.catBudgetId);
-      if (cat) {
-        cat.budget = Math.max(0, Number(inp.value) || 0);
-        cat.updated_at = Date.now();
-        enqueueOutbox('categories', cat);
+    const rows = [];
+    const seenNames = new Set();
+    let validationErr = '';
+
+    document.querySelectorAll('[data-cat-budget-id]').forEach(budgetInp => {
+      if (validationErr) return;
+      const catId = budgetInp.dataset.catBudgetId;
+      const nameInp = document.querySelector(`[data-cat-name-id="${CSS.escape(catId)}"]`);
+      const cat = state.categories.find(c => String(c.id) === String(catId));
+      if (!cat) return;
+
+      const newName = nameInp ? nameInp.value.trim() : cat.name;
+      if (!newName) {
+        validationErr = 'O nome de uma categoria não pode ficar vazio.';
+        return;
+      }
+      const normKey = newName.toLowerCase();
+      if (seenNames.has(normKey)) {
+        validationErr = `Já existe uma categoria chamada "${newName}".`;
+        return;
+      }
+      seenNames.add(normKey);
+      rows.push({
+        cat,
+        oldName: cat.name,
+        newName,
+        newBudget: Math.max(0, Number(budgetInp.value) || 0)
+      });
+    });
+
+    if (validationErr) {
+      showToast(validationErr, { type: 'error' });
+      return;
+    }
+
+    const now = Date.now();
+    let metaChanged = false;
+
+    rows.forEach(({ cat, oldName, newName, newBudget }) => {
+      const nameChanged = oldName !== newName;
+      const budgetChanged = Number(cat.budget || 0) !== newBudget;
+      if (!nameChanged && !budgetChanged) return;
+
+      cat.name = newName;
+      cat.budget = newBudget;
+      cat.updated_at = now;
+      enqueueOutbox('categories', cat);
+
+      if (nameChanged) {
+        (state.transactions || []).forEach(t => {
+          if (!t.deleted_at && t.category === oldName) {
+            t.category = newName;
+            t.updated_at = now;
+            enqueueOutbox('transactions', t);
+          }
+        });
+        (state.recurring_expenses || []).forEach(r => {
+          if (!r.deleted_at && r.category === oldName) {
+            r.category = newName;
+            r.updated_at = now;
+            enqueueOutbox('recurring_expenses', r);
+          }
+        });
+        (state.meta?.category_rules || []).forEach(rule => {
+          if (rule.category === oldName) {
+            rule.category = newName;
+            metaChanged = true;
+          }
+        });
       }
     });
+
+    if (metaChanged && state.meta) {
+      state.meta.updated_at = now;
+      if (sync.householdId) {
+        enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+      }
+    }
+
     saveLocalState(state);
     render();
     sync.flushOutbox();
-    showToast('Limites atualizados.', { type: 'success' });
+    showToast('Categorias e limites guardados!', { type: 'success' });
   };
 
   $('newCategoryForm').onsubmit = e => {
     e.preventDefault();
+    const rawName = $('newCategoryName').value.trim();
+    if (!rawName) return;
+    const exists = (state.categories || []).some(
+      c => !c.deleted_at && String(c.name).trim().toLowerCase() === rawName.toLowerCase()
+    );
+    if (exists) {
+      showToast(`A categoria "${rawName}" já existe.`, { type: 'error' });
+      return;
+    }
+    const maxOrder = (state.categories || [])
+      .filter(c => !c.deleted_at)
+      .reduce((m, c) => Math.max(m, Number(c.sort_order) || 0), 0);
     const cat = {
       id: uid('cat'),
-      name: $('newCategoryName').value.trim(),
+      household_id: sync.householdId || null,
+      name: rawName,
       budget: Math.max(0, Number($('newCategoryBudget').value) || 0),
-      sort_order: state.categories.length + 1,
-      updated_at: Date.now()
+      sort_order: maxOrder + 1,
+      updated_at: Date.now(),
+      deleted_at: null
     };
     state.categories.push(cat);
     mutate('categories', cat);
@@ -2791,7 +2940,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.7.1').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.7.2').then(reg => reg.update()).catch(() => {});
   }
 
   render();
