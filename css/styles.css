@@ -1100,11 +1100,8 @@ body.privacy-masked .cc-spent-sub strong {
     overflow-y: auto;
   }
 
-  /* Vistas secundárias em 2 colunas largas no PC */
-  #movimentos.view.active,
-  #graficos.view.active,
-  #objetivo.view.active,
-  #orcamento.view.active {
+  /* Movimentos mantém formulário fixo à esquerda e histórico à direita */
+  #movimentos.view.active {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     gap: 20px;
@@ -1114,5 +1111,29 @@ body.privacy-masked .cc-spent-sub strong {
   #movimentos #txFormCard {
     position: sticky;
     top: 20px;
+  }
+
+  /* Preenchimento automático tipo Masonry (sem espaços vazios verticais) nos restantes separadores */
+  #orcamento.view.active,
+  #dados.view.active,
+  #objetivo.view.active,
+  #calendario.view.active {
+    display: block;
+    columns: 2;
+    column-gap: 20px;
+  }
+
+  #orcamento.view.active > .card,
+  #dados.view.active > .card,
+  #objetivo.view.active > .card,
+  #objetivo.view.active > .alert,
+  #objetivo.view.active > #goalList,
+  #calendario.view.active > .card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    display: inline-block;
+    width: 100%;
+    margin: 0 0 18px 0;
+    vertical-align: top;
   }
 }
