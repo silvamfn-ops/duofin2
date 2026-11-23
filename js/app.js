@@ -436,6 +436,38 @@ function render() {
         }
       }
     }
+
+    // Alerta proativo de encargos fixos próximos (<= 5 dias) ou vencidos neste ciclo
+    const todayIso = iso();
+    if (todayIso >= cycle.start && todayIso <= cycle.end) {
+      const todayMs = new Date(`${todayIso}T00:00:00`).getTime();
+      const dueSoon = [];
+      for (const r of (state.recurring_expenses || [])) {
+        if (r.deleted_at || r.active === false) continue;
+        const cpMap = r.cycle_payments && typeof r.cycle_payments === 'object' ? r.cycle_payments : {};
+        const entry = cpMap[cycle.key] || {};
+        if (entry.paid) continue;
+        const dueDate = getSuggestedEncargoDate(cycle, r.day_of_month);
+        const dueMs = new Date(`${dueDate}T00:00:00`).getTime();
+        const diffDays = Math.round((dueMs - todayMs) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 5) {
+          const amt = entry.amount !== undefined && entry.amount !== null && entry.amount !== '' ? Number(entry.amount) : (Number(r.amount) || 0);
+          dueSoon.push({ r, dueDate, diffDays, amt });
+        }
+      }
+      if (dueSoon.length > 0) {
+        const aid = `encargos-due:${cycle.key}:${dueSoon.map(x => x.r.id).join(',')}`;
+        if (!isAlertDismissedForCycle(cycle.key, aid)) {
+          const summaryNames = dueSoon
+            .slice(0, 3)
+            .map(x => `${esc(x.r.description)} (${x.diffDays < 0 ? `dia ${fmtDate(x.dueDate).slice(0, 5)}` : x.diffDays === 0 ? 'hoje' : `em ${x.diffDays}d`}${x.amt > 0 ? ` · ${eur(x.amt)}` : ''})`)
+            .join(', ');
+          const extraCnt = dueSoon.length > 3 ? ` e +${dueSoon.length - 3}` : '';
+          alertHtml.push(`<div class="alert alert-dismissible"><span>🔁 <b>Encargos por pagar:</b> ${summaryNames}${extraCnt}. <button type="button" class="ghost" data-jump-encargos="1" style="padding:2px 8px;font-size:11.5px;margin-left:4px">Abrir Caderno</button></span><button type="button" class="alert-dismiss-btn" data-dismiss-alert="${esc(aid)}" data-dismiss-cycle="${esc(cycle.key)}" title="Ocultar este alerta" aria-label="Fechar alerta">✕</button></div>`);
+        }
+      }
+    }
+
     $('alerts').innerHTML = alertHtml.join('');
   }
 
@@ -524,7 +556,9 @@ function render() {
         .join('')
     : '<div class="card empty">Ainda não existem objetivos de poupança.</div>';
 
-  const recent = [...tx].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const recent = [...tx]
+    .sort((a, b) => b.date.localeCompare(a.date) || Number(b.updated_at || 0) - Number(a.updated_at || 0))
+    .slice(0, 10);
   $('recent').innerHTML = recent.length
     ? recent.map(renderTxRow).join('')
     : '<div class="empty">Ainda sem movimentos neste ciclo.</div>';
@@ -1099,9 +1133,14 @@ async function initStorageProtectionAndBackupReminder() {
       reminderEl.textContent = '⚠️ Ainda não fizeste nenhuma cópia de segurança JSON neste dispositivo.';
     } else {
       const days = Math.floor((Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24));
-      reminderEl.textContent = days === 0
-        ? '✅ Última cópia de segurança exportada hoje.'
-        : `ℹ️ Última cópia de segurança há ${days} dia(s) (${fmtDate(lastBackup.slice(0, 10))}).`;
+      if (days === 0) {
+        reminderEl.textContent = '✅ Última cópia de segurança exportada hoje.';
+      } else if (days >= 30) {
+        reminderEl.style.color = 'var(--amber, #b45309)';
+        reminderEl.textContent = `⚠️ Última cópia de segurança há ${days} dias (${fmtDate(lastBackup.slice(0, 10))}). Recomendamos exportar um novo ficheiro JSON.`;
+      } else {
+        reminderEl.textContent = `ℹ️ Última cópia de segurança há ${days} dia(s) (${fmtDate(lastBackup.slice(0, 10))}).`;
+      }
     }
   }
 
@@ -1187,6 +1226,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   $('quickAddFab').onclick = () => openAddTxModal(true);
+  if ($('viewAllCycleTxBtn')) {
+    $('viewAllCycleTxBtn').onclick = () => {
+      movementCycleKey = selectedCycleKey || 'all';
+      switchTab('movimentos');
+    };
+  }
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-jump-encargos]')) {
+      encargosCycleKey = selectedCycleKey;
+      switchTab('recorrentes');
+    }
+  });
   if ($('openNewTxModalBtn')) {
     $('openNewTxModalBtn').onclick = () => openAddTxModal(true);
   }
@@ -1758,6 +1809,7 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Valor inválido.');
       return;
     }
+    const prevCategory = tx.category;
     const tp = $('modalEditType').value;
     tx.date = $('modalEditDate').value;
     tx.type = tp;
@@ -1778,7 +1830,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('txDetailModal').hidden = true;
     mutate('transactions', tx);
-    showToast('Alterações guardadas e sincronizadas.', { type: 'success' });
+
+    if (tp === 'expense' && tx.category && tx.category !== prevCategory && tx.description.length >= 3) {
+      const learnedDesc = tx.description;
+      const learnedCat = tx.category;
+      showToast(`Guardado! Memorizar "${learnedCat}" para "${learnedDesc}"?`, {
+        type: 'success',
+        duration: 5500,
+        undoLabel: '🧠 Memorizar regra',
+        onUndo: () => {
+          learnCategoryRule(state, learnedDesc, learnedCat);
+          state.meta.updated_at = Date.now();
+          saveLocalState(state);
+          if (sync.householdId) {
+            enqueueOutbox('household_meta', { ...state.meta, household_id: sync.householdId });
+            sync.flushOutbox();
+          }
+          renderCategoryRules();
+          showToast(`Regra memorizada: → ${learnedCat}`, { type: 'success' });
+        }
+      });
+    } else {
+      showToast('Alterações guardadas e sincronizadas.', { type: 'success' });
+    }
   };
 
   ['analyticsCycleSelect', 'analyticsMetric', 'analyticsChartType'].forEach(id => {
@@ -2755,11 +2829,12 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
           </div>
           ${r.isDuplicate ? `<div style="padding-left:24px"><span class="dup-badge" title="${esc(r.duplicateReason)}">⚠️ Possível duplicado (${fmtDate(r.matchedTx.date)} · ${esc(r.matchedTx.description)})</span></div>` : ''}
           <div class="row" style="gap:8px;padding-left:24px">
-            <select data-imp-type="${i}" style="padding:4px 8px;font-size:12px;max-width:130px">
+            <select data-imp-type="${i}" style="padding:4px 8px;font-size:12px;max-width:155px">
               <option value="expense" ${r.type === 'expense' ? 'selected' : ''}>Despesa</option>
               <option value="income" ${r.type === 'income' ? 'selected' : ''}>Rendimento</option>
+              <option value="transfer" ${r.type === 'transfer' ? 'selected' : ''}>Transferência int.</option>
             </select>
-            <select data-imp-cat="${i}" style="padding:4px 8px;font-size:12px;flex:1" ${r.type === 'income' ? 'disabled' : ''}>
+            <select data-imp-cat="${i}" style="padding:4px 8px;font-size:12px;flex:1" ${r.type !== 'expense' ? 'disabled' : ''}>
               ${catOpts}
             </select>
           </div>
@@ -2774,7 +2849,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
       if (typeSel) {
         typeSel.onchange = () => {
           r.type = typeSel.value;
-          if (catSel) catSel.disabled = r.type === 'income';
+          if (catSel) catSel.disabled = r.type !== 'expense';
           showImportPreview(parsedImportRows, false);
         };
       }
@@ -2804,6 +2879,8 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
       const finalType = document.querySelector(`[data-imp-type="${idx}"]`)?.value || r.type;
       const finalCat = finalType === 'income'
         ? 'Rendimento'
+        : finalType === 'transfer'
+        ? 'Transferência interna'
         : (document.querySelector(`[data-imp-cat="${idx}"]`)?.value || r.category);
 
       if (finalType === 'expense' && r._userChangedCat) {
@@ -3068,7 +3145,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.7.8').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.0').then(reg => reg.update()).catch(() => {});
   }
 
   render();
