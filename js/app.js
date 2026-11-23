@@ -3029,11 +3029,19 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.7.5').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.7.6').then(reg => reg.update()).catch(() => {});
   }
 
   render();
   checkAutomaticCycleRollover();
   initStorageProtectionAndBackupReminder();
   sync.connectAndSubscribe();
+  // Fechar suavemente o ecrã de arranque (Splash Screen)
+  const splashEl = $('appSplashScreen');
+  if (splashEl) {
+    setTimeout(() => {
+      splashEl.classList.add('is-hidden');
+      setTimeout(() => splashEl.remove(), 460);
+    }, 750);
+  }
 });

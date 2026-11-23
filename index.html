@@ -12,11 +12,21 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
+  <link rel="apple-touch-startup-image" href="./icons/splash-ios.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <link rel="stylesheet" href="./css/styles.css?v=2.7.5">
-  <title>DuoFin 2 v2.7.5 — Gestão financeira a dois</title>
+  <link rel="stylesheet" href="./css/styles.css?v=2.7.6">
+  <title>DuoFin 2 v2.7.6 — Gestão financeira a dois</title>
 </head>
 <body>
+  <!-- Ecrã de Arranque (Splash Screen) -->
+  <div id="appSplashScreen" class="app-splash-screen" role="status" aria-live="polite">
+    <div class="app-splash-inner">
+      <img src="./icons/splash-logo.png" alt="DuoFin 2" class="app-splash-logo" width="190" height="200">
+      <p class="app-splash-text">A carregar as suas finanças...</p>
+      <div class="app-splash-spinner" aria-hidden="true"></div>
+    </div>
+  </div>
+
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
   <div id="appLockOverlay" class="app-lock-overlay" hidden>
     <div class="app-lock-box" role="dialog" aria-modal="true" aria-labelledby="appLockTitle">
@@ -1190,9 +1200,9 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.7.5 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.7.6 · Gestão financeira a dois</footer>
     </div>
   </div>
-  <script type="module" src="./js/app.js?v=2.7.5"></script>
+  <script type="module" src="./js/app.js?v=2.7.6"></script>
 </body>
 </html>

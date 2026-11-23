@@ -1,3 +1,68 @@
+/* ================= ECRÃ DE ARRANQUE (SPLASH SCREEN v2.7.6) ================= */
+.app-splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: radial-gradient(circle at 50% 38%, #18324f 0%, #12263d 65%, #0d1c2e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 20px) 24px env(safe-area-inset-bottom, 24px);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.42s ease, visibility 0.42s ease;
+}
+
+.app-splash-screen.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: 280px;
+  animation: splashFadeUp 0.45s ease-out both;
+}
+
+.app-splash-logo {
+  width: 185px;
+  height: auto;
+  object-fit: contain;
+  margin-bottom: 34px;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.28));
+}
+
+.app-splash-text {
+  margin: 0 0 16px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.app-splash-spinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #ffffff;
+  animation: splashSpin 0.85s linear infinite;
+}
+
+@keyframes splashSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes splashFadeUp {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 :root{
   --g:#173653;--g-hover:#1f486e;--p:#e8eef4;--bg:#f4f6f9;--ink:#192838;--muted:#68798a;
   --line:#dce4ec;--red:#b54747;--green:#245d49;--amber:#c97a1e;
