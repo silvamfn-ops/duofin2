@@ -25,6 +25,26 @@ let movementCycleKey = null;
 let encargosCycleKey = null;
 let quickStatusFilter = 'all';
 let calendarMonthStr = currentMonth();
+let calScopeMode = 'day';
+const CAL_LAYOUT_KEY = 'duofin2_cal_split_v1';
+function loadCalLayoutPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CAL_LAYOUT_KEY) || '{}');
+    return {
+      leftPct: Number.isFinite(raw.leftPct) ? Math.min(72, Math.max(28, raw.leftPct)) : 50,
+      swapped: !!raw.swapped
+    };
+  } catch (_) {
+    return { leftPct: 50, swapped: false };
+  }
+}
+function saveCalLayoutPrefs(prefs) {
+  try {
+    localStorage.setItem(CAL_LAYOUT_KEY, JSON.stringify(prefs));
+  } catch (_) {}
+}
+let calLayoutPrefs = loadCalLayoutPrefs();
+
 let selectedCalendarDay = iso();
 let parsedImportRows = [];
 
@@ -919,13 +939,27 @@ function renderCalendar() {
   }
 
   $('calendar').innerHTML = weekHeaders + cells;
-  $('dayTitle').textContent = `Movimentos de ${fmtDate(selectedCalendarDay)}`;
-  const selMonth = selectedCalendarDay.slice(0, 7);
-  const selProjected = selMonth === calendarMonthStr ? projectedMonthEvents.filter(p => p.date === selectedCalendarDay) : getProjectedCalendarEvents(state, selMonth).filter(p => p.date === selectedCalendarDay);
-  const items = [
-    ...state.transactions.filter(t => !t.deleted_at && t.date === selectedCalendarDay),
-    ...selProjected
-  ];
+  if ($('calScopeToggleBtn')) {
+    $('calScopeToggleBtn').textContent = calScopeMode === 'month' ? '📅 Ver só o dia' : '📋 Ver mês inteiro';
+  }
+  let items = [];
+  if (calScopeMode === 'month') {
+    $('dayTitle').textContent = `Movimentos de ${title}`;
+    const realMonth = state.transactions
+      .filter(t => !t.deleted_at && String(t.date || '').startsWith(calendarMonthStr))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    items = [...realMonth, ...projectedMonthEvents].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  } else {
+    $('dayTitle').textContent = `Movimentos de ${fmtDate(selectedCalendarDay)}`;
+    const selMonth = selectedCalendarDay.slice(0, 7);
+    const selProjected = selMonth === calendarMonthStr
+      ? projectedMonthEvents.filter(p => p.date === selectedCalendarDay)
+      : getProjectedCalendarEvents(state, selMonth).filter(p => p.date === selectedCalendarDay);
+    items = [
+      ...state.transactions.filter(t => !t.deleted_at && t.date === selectedCalendarDay),
+      ...selProjected
+    ];
+  }
 
   const daySummaryEl = $('daySummary');
   if (daySummaryEl) {
@@ -948,14 +982,14 @@ function renderCalendar() {
           <b class="minus">−${eur(dayExp)}</b>
         </div>
         <div class="day-sum-pill">
-          <span class="small">Saldo do dia</span>
+          <span class="small">${calScopeMode === 'month' ? 'Saldo do mês' : 'Saldo do dia'}</span>
           <b class="${dayNet > 0 ? 'plus' : dayNet < 0 ? 'minus' : ''}">${dayNet > 0 ? '+' : ''}${eur(dayNet)}</b>
         </div>
       `;
     }
   }
 
-  $('dayItems').innerHTML = items.length ? items.map(renderTxRow).join('') : '<div class="empty">Sem movimentos neste dia.</div>';
+  $('dayItems').innerHTML = items.length ? items.map(renderTxRow).join('') : calScopeMode === 'month' ? '<div class="empty">Sem movimentos neste mês.</div>' : '<div class="empty">Sem movimentos neste dia.</div>';
 }
 
 function openTxDetailModal(txId) {
@@ -1758,6 +1792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const calDay = e.target.closest('[data-cal-day]');
     if (calDay) {
       selectedCalendarDay = calDay.dataset.calDay;
+      calScopeMode = 'day';
       renderCalendar();
     }
   });
@@ -2067,6 +2102,106 @@ document.addEventListener('DOMContentLoaded', () => {
     $('encargoModal').hidden = true;
     showToast('Serviço adicionado ao caderno de encargos!', { type: 'success' });
   };
+
+
+  // --- Calendário: Redimensionamento interativo, troca de lado e vista dia/mês ---
+  function applyCalLayoutPrefs() {
+    const layoutEl = $('calSplitLayout');
+    if (!layoutEl) return;
+    layoutEl.style.setProperty('--cal-left-size', `${calLayoutPrefs.leftPct}%`);
+    layoutEl.classList.toggle('is-swapped', !!calLayoutPrefs.swapped);
+
+    const expandBtn = $('calExpandMovementsBtn');
+    if (expandBtn) {
+      const movPct = calLayoutPrefs.swapped ? calLayoutPrefs.leftPct : 100 - calLayoutPrefs.leftPct;
+      expandBtn.textContent = movPct >= 60 ? '↔ 50 / 50' : '⤢ Ampliar';
+    }
+  }
+  applyCalLayoutPrefs();
+
+  if ($('calScopeToggleBtn')) {
+    $('calScopeToggleBtn').onclick = () => {
+      calScopeMode = calScopeMode === 'day' ? 'month' : 'day';
+      renderCalendar();
+    };
+  }
+
+  if ($('calSwapOrderBtn')) {
+    $('calSwapOrderBtn').onclick = () => {
+      calLayoutPrefs.swapped = !calLayoutPrefs.swapped;
+      calLayoutPrefs.leftPct = 100 - calLayoutPrefs.leftPct;
+      saveCalLayoutPrefs(calLayoutPrefs);
+      applyCalLayoutPrefs();
+    };
+  }
+
+  if ($('calExpandMovementsBtn')) {
+    $('calExpandMovementsBtn').onclick = () => {
+      const movPct = calLayoutPrefs.swapped ? calLayoutPrefs.leftPct : 100 - calLayoutPrefs.leftPct;
+      if (movPct >= 60) {
+        calLayoutPrefs.leftPct = 50;
+      } else {
+        calLayoutPrefs.leftPct = calLayoutPrefs.swapped ? 65 : 35;
+      }
+      saveCalLayoutPrefs(calLayoutPrefs);
+      applyCalLayoutPrefs();
+    };
+  }
+
+  const splitterEl = $('calSplitter');
+  const layoutEl = $('calSplitLayout');
+  if (splitterEl && layoutEl) {
+    let dragging = false;
+
+    const updateFromClientX = clientX => {
+      const rect = layoutEl.getBoundingClientRect();
+      if (!rect.width) return;
+      const pct = ((clientX - rect.left) / rect.width) * 100;
+      calLayoutPrefs.leftPct = Math.round(Math.min(72, Math.max(28, pct)) * 10) / 10;
+      applyCalLayoutPrefs();
+    };
+
+    splitterEl.addEventListener('pointerdown', e => {
+      dragging = true;
+      splitterEl.classList.add('is-dragging');
+      splitterEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    splitterEl.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      updateFromClientX(e.clientX);
+    });
+
+    const stopDrag = e => {
+      if (!dragging) return;
+      dragging = false;
+      splitterEl.classList.remove('is-dragging');
+      if (e && e.pointerId !== undefined) {
+        try { splitterEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+      saveCalLayoutPrefs(calLayoutPrefs);
+    };
+
+    splitterEl.addEventListener('pointerup', stopDrag);
+    splitterEl.addEventListener('pointercancel', stopDrag);
+
+    splitterEl.addEventListener('dblclick', () => {
+      calLayoutPrefs.leftPct = 50;
+      saveCalLayoutPrefs(calLayoutPrefs);
+      applyCalLayoutPrefs();
+    });
+
+    splitterEl.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const delta = e.key === 'ArrowLeft' ? -3 : 3;
+        calLayoutPrefs.leftPct = Math.min(72, Math.max(28, calLayoutPrefs.leftPct + delta));
+        saveCalLayoutPrefs(calLayoutPrefs);
+        applyCalLayoutPrefs();
+      }
+    });
+  }
 
   $('prevCalMonth').onclick = () => {
     const [y, m] = calendarMonthStr.split('-').map(Number);
@@ -3145,7 +3280,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.0').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.1').then(reg => reg.update()).catch(() => {});
   }
 
   render();

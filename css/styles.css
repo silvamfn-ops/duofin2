@@ -1174,8 +1174,7 @@ body.privacy-masked .cc-spent-sub strong {
   /* Preenchimento automático tipo Masonry (sem espaços vazios verticais) nos restantes separadores */
   #orcamento.view.active,
   #dados.view.active,
-  #objetivo.view.active,
-  #calendario.view.active {
+  #objetivo.view.active {
     display: block;
     columns: 2;
     column-gap: 20px;
@@ -1185,8 +1184,7 @@ body.privacy-masked .cc-spent-sub strong {
   #dados.view.active > .card,
   #objetivo.view.active > .card,
   #objetivo.view.active > .alert,
-  #objetivo.view.active > #goalList,
-  #calendario.view.active > .card {
+  #objetivo.view.active > #goalList {
     break-inside: avoid;
     page-break-inside: avoid;
     display: inline-block;
@@ -1194,4 +1192,111 @@ body.privacy-masked .cc-spent-sub strong {
     margin: 0 0 18px 0;
     vertical-align: top;
   }
+
+  /* Separador Calendário: grelha lado a lado redimensionável e reposicionável no PC */
+  #calendario.view.active {
+    display: block;
+  }
+
+  .cal-split-layout {
+    display: grid;
+    grid-template-columns: minmax(300px, var(--cal-left-size, 50%)) 14px minmax(280px, 1fr);
+    align-items: start;
+    gap: 0;
+  }
+
+  .cal-split-layout .card {
+    margin: 0;
+  }
+
+  .cal-split-layout.is-swapped .cal-pane-movements {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .cal-split-layout.is-swapped .cal-splitter {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .cal-split-layout.is-swapped .cal-pane-grid {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .cal-splitter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+    position: relative;
+  }
+
+  .cal-splitter::before {
+    content: '';
+    width: 3px;
+    height: 54px;
+    border-radius: 99px;
+    background: var(--line-strong, #cbd5e1);
+    transition: background 0.15s ease, height 0.15s ease;
+  }
+
+  .cal-splitter:hover::before,
+  .cal-splitter.is-dragging::before {
+    background: var(--accent, #2563eb);
+    height: 92px;
+  }
+
+  .cal-splitter-grip {
+    position: absolute;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    padding: 4px 2px;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+
+  .cal-pane-movements {
+    position: sticky;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+  }
+
+  .cal-day-items-scroll {
+    overflow-y: auto;
+    max-height: calc(100vh - 175px);
+    padding-right: 4px;
+  }
 }
+
+/* Suporte móvel / ecrã estreito para reordenar e ajustar altura da secção de movimentos no Calendário */
+@media (max-width: 1039px) {
+  .cal-split-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cal-split-layout.is-swapped .cal-pane-movements {
+    order: -1;
+  }
+
+  .cal-splitter {
+    display: none;
+  }
+
+  .cal-day-items-scroll {
+    max-height: 58vh;
+    overflow-y: auto;
+  }
+}
+

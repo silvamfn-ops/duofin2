@@ -14,8 +14,8 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png?v=2.7.7">
   <link rel="apple-touch-startup-image" href="./icons/splash-ios.png?v=2.7.7">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <link rel="stylesheet" href="./css/styles.css?v=2.8.0">
-  <title>DuoFin 2 v2.8.0 — Gestão financeira a dois</title>
+  <link rel="stylesheet" href="./css/styles.css?v=2.8.1">
+  <title>DuoFin 2 v2.8.1 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Arranque (Splash Screen) -->
@@ -428,30 +428,44 @@
 
     <!-- ================= CALENDÁRIO ================= -->
     <section id="calendario" class="view">
-      <div class="card">
-        <div class="row">
-          <button class="secondary" id="prevCalMonth" aria-label="Mês anterior">‹</button>
-          <h2 id="calTitle" style="margin:0"></h2>
-          <button class="secondary" id="nextCalMonth" aria-label="Mês seguinte">›</button>
-        </div>
-        <div class="row" style="margin-top:10px;flex-wrap:wrap">
-          <div style="min-width:170px">
-            <label for="calendarMonth" style="margin-top:0">Mês do calendário</label>
-            <input id="calendarMonth" type="month">
+      <div id="calSplitLayout" class="cal-split-layout">
+        <div class="card cal-pane-grid" id="calGridCard">
+          <div class="row">
+            <button class="secondary" id="prevCalMonth" aria-label="Mês anterior">‹</button>
+            <h2 id="calTitle" style="margin:0"></h2>
+            <button class="secondary" id="nextCalMonth" aria-label="Mês seguinte">›</button>
           </div>
-          <div class="cal-legend">
-            <span><i class="dot dot-exp"></i> Despesa</span>
-            <span><i class="dot dot-inc"></i> Rendimento</span>
-            <span><i class="dot dot-sav"></i> Poupança</span>
-            <span><i class="dot dot-proj"></i> Previsto</span>
+          <div class="row" style="margin-top:10px;flex-wrap:wrap">
+            <div style="min-width:170px">
+              <label for="calendarMonth" style="margin-top:0">Mês do calendário</label>
+              <input id="calendarMonth" type="month">
+            </div>
+            <div class="cal-legend">
+              <span><i class="dot dot-exp"></i> Despesa</span>
+              <span><i class="dot dot-inc"></i> Rendimento</span>
+              <span><i class="dot dot-sav"></i> Poupança</span>
+              <span><i class="dot dot-proj"></i> Previsto</span>
+            </div>
           </div>
+          <div id="calendar" class="calendar"></div>
         </div>
-        <div id="calendar" class="calendar"></div>
-      </div>
-      <div class="card">
-        <h2 id="dayTitle">Movimentos do dia</h2>
-        <div id="daySummary" class="day-summary-bar" hidden></div>
-        <div id="dayItems"></div>
+
+        <div id="calSplitter" class="cal-splitter" role="separator" aria-orientation="vertical" tabindex="0" title="Arrasta para redimensionar as secções (duplo clique para 50/50)">
+          <span class="cal-splitter-grip" aria-hidden="true">⋮</span>
+        </div>
+
+        <div class="card cal-pane-movements" id="calDayCard">
+          <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            <h2 id="dayTitle" style="margin:0">Movimentos do dia</h2>
+            <div class="row" style="gap:5px;flex-wrap:wrap">
+              <button type="button" class="ghost" id="calScopeToggleBtn" style="padding:4px 8px;font-size:12px" title="Alternar entre movimentos do dia selecionado ou de todo o mês">📋 Ver mês inteiro</button>
+              <button type="button" class="ghost" id="calSwapOrderBtn" style="padding:4px 8px;font-size:12px" title="Mover secção de movimentos para a esquerda/direita (ou topo/base)">⇄ Mover lado</button>
+              <button type="button" class="ghost" id="calExpandMovementsBtn" style="padding:4px 8px;font-size:12px" title="Expandir área de movimentos ou repor proporção">⤢ Ampliar</button>
+            </div>
+          </div>
+          <div id="daySummary" class="day-summary-bar" hidden></div>
+          <div id="dayItems" class="cal-day-items-scroll"></div>
+        </div>
       </div>
     </section>
 
@@ -1218,9 +1232,9 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.8.0 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.8.1 · Gestão financeira a dois</footer>
     </div>
   </div>
-  <script type="module" src="./js/app.js?v=2.8.0"></script>
+  <script type="module" src="./js/app.js?v=2.8.1"></script>
 </body>
 </html>
