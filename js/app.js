@@ -26,6 +26,7 @@ let encargosCycleKey = null;
 let quickStatusFilter = 'all';
 let calendarMonthStr = currentMonth();
 let calScopeMode = 'day';
+let selectedGoalId = null;
 const CAL_LAYOUT_KEY = 'duofin2_cal_split_v1';
 function loadCalLayoutPrefs() {
   try {
@@ -566,15 +567,23 @@ function render() {
       : '<div class="empty">Ainda sem objetivos de poupança.</div>';
   }
 
+  if (selectedGoalId && !activeGoals.some(g => String(g.id) === String(selectedGoalId))) {
+    selectedGoalId = null;
+  }
+
   $('goalList').innerHTML = activeGoals.length
     ? activeGoals
         .map(g => {
           const saved = goalTotal(state, g.id);
           const pct = g.target > 0 ? Math.min(100, (saved / g.target) * 100) : 0;
-          return `<div class="card"><div class="row"><b>${esc(g.name)}</b><div class="row" style="gap:6px"><span class="pill">${Math.round(pct)}%</span><button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-goal="${esc(g.id)}">✎</button><button type="button" class="danger" data-del-goal="${esc(g.id)}">×</button></div></div><div class="small">${eur(saved)} / ${eur(g.target)}${g.deadline ? ` · Meta: ${fmtDate(g.deadline)}` : ''}</div><div class="progress"><i style="width:${pct}%"></i></div></div>`;
+          const isSel = String(selectedGoalId) === String(g.id);
+          const txCount = (state.transactions || []).filter(t => !t.deleted_at && String(t.goal_id) === String(g.id)).length;
+          return `<div class="card goal-card-clickable${isSel ? ' is-selected-goal' : ''}" data-select-goal="${esc(g.id)}" title="Clica para ver os movimentos deste objetivo"><div class="row"><b>${esc(g.name)}</b><div class="row" style="gap:6px"><span class="pill">${Math.round(pct)}%</span><button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-goal="${esc(g.id)}" title="Editar objetivo">✎</button><button type="button" class="danger" data-del-goal="${esc(g.id)}" title="Eliminar objetivo">×</button></div></div><div class="small">${eur(saved)} / ${eur(g.target)}${g.deadline ? ` · Meta: ${fmtDate(g.deadline)}` : ''} · ${txCount} mov.</div><div class="progress"><i style="width:${pct}%"></i></div></div>`;
         })
         .join('')
     : '<div class="card empty">Ainda não existem objetivos de poupança.</div>';
+
+  renderGoalMovementsPanel(activeGoals);
 
   const recent = [...tx]
     .sort((a, b) => b.date.localeCompare(a.date) || Number(b.updated_at || 0) - Number(a.updated_at || 0))
@@ -899,6 +908,87 @@ function renderRecurringSection() {
     el.hidden = unpaidCount === 0;
     el.textContent = unpaidCount;
   });
+}
+
+function renderGoalMovementsPanel(activeGoals) {
+  const cardEl = $('goalMovementsCard');
+  const titleEl = $('goalMovementsTitle');
+  const subEl = $('goalMovementsSubtitle');
+  const sumEl = $('goalMovementsSummary');
+  const listEl = $('goalMovementsList');
+  const quickBtn = $('goalQuickMoveBtn');
+  const allBtn = $('goalShowAllMovesBtn');
+  if (!cardEl || !listEl) return;
+
+  if (!activeGoals || !activeGoals.length) {
+    cardEl.hidden = true;
+    return;
+  }
+  cardEl.hidden = false;
+
+  const selGoal = selectedGoalId
+    ? activeGoals.find(g => String(g.id) === String(selectedGoalId))
+    : null;
+
+  const goalNameById = new Map(activeGoals.map(g => [String(g.id), g.name]));
+  const matchingTx = (state.transactions || [])
+    .filter(t => {
+      if (t.deleted_at || !t.goal_id) return false;
+      if (selGoal) return String(t.goal_id) === String(selGoal.id);
+      return goalNameById.has(String(t.goal_id));
+    })
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || Number(b.updated_at || 0) - Number(a.updated_at || 0));
+
+  if (selGoal) {
+    titleEl.textContent = `Movimentos — ${selGoal.name}`;
+    subEl.textContent = `${matchingTx.length} movimento(s) registado(s) neste objetivo · Toca num movimento para editar`;
+    if (quickBtn) quickBtn.hidden = false;
+    if (allBtn) allBtn.hidden = activeGoals.length <= 1;
+  } else {
+    titleEl.textContent = 'Todos os movimentos de objetivos';
+    subEl.textContent = 'Clica num cartão de objetivo acima para filtrar apenas os seus movimentos';
+    if (quickBtn) quickBtn.hidden = true;
+    if (allBtn) allBtn.hidden = true;
+  }
+
+  if (!matchingTx.length) {
+    if (sumEl) {
+      sumEl.hidden = true;
+      sumEl.innerHTML = '';
+    }
+    listEl.innerHTML = selGoal
+      ? `<div class="empty">Ainda não existem reforços nem resgates associados a <b>${esc(selGoal.name)}</b>. Toca em <b>+ Reforçar / Resgatar</b> para registar o primeiro.</div>`
+      : '<div class="empty">Ainda não existem movimentos associados aos teus objetivos de poupança.</div>';
+    return;
+  }
+
+  const totalAdded = matchingTx
+    .filter(t => t.type === 'saving')
+    .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+  const totalWithdrawn = matchingTx
+    .filter(t => t.type === 'saving_withdraw')
+    .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+  const netSaved = totalAdded - totalWithdrawn;
+
+  if (sumEl) {
+    sumEl.hidden = false;
+    sumEl.innerHTML = `
+      <div class="day-sum-pill">
+        <span class="small">Total reforçado</span>
+        <b class="plus">+${eur(totalAdded)}</b>
+      </div>
+      <div class="day-sum-pill">
+        <span class="small">Utilizado / Resgate</span>
+        <b class="minus">−${eur(totalWithdrawn)}</b>
+      </div>
+      <div class="day-sum-pill">
+        <span class="small">Saldo acumulado</span>
+        <b class="${netSaved >= 0 ? 'plus' : 'minus'}">${eur(netSaved)}</b>
+      </div>
+    `;
+  }
+
+  listEl.innerHTML = `<div class="tx-list-scroll">${matchingTx.map(renderTxRow).join('')}</div>`;
 }
 
 function renderCalendar() {
@@ -1264,6 +1354,24 @@ document.addEventListener('DOMContentLoaded', () => {
     $('viewAllCycleTxBtn').onclick = () => {
       movementCycleKey = selectedCycleKey || 'all';
       switchTab('movimentos');
+    };
+  }
+  if ($('goalShowAllMovesBtn')) {
+    $('goalShowAllMovesBtn').onclick = () => {
+      selectedGoalId = null;
+      render();
+    };
+  }
+  if ($('goalQuickMoveBtn')) {
+    $('goalQuickMoveBtn').onclick = () => {
+      openAddTxModal(true);
+      if ($('type')) {
+        $('type').value = 'saving';
+        $('type').dispatchEvent(new Event('change'));
+      }
+      if ($('savingGoal') && selectedGoalId) {
+        $('savingGoal').value = selectedGoalId;
+      }
     };
   }
   document.addEventListener('click', e => {
@@ -1732,8 +1840,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (delGoal) {
       const g = state.savings_goals.find(x => String(x.id) === String(delGoal.dataset.delGoal));
       if (g && confirm(`Eliminar objetivo "${g.name}"?`)) {
+        if (String(selectedGoalId) === String(g.id)) selectedGoalId = null;
         g.deleted_at = Date.now();
         mutate('savings_goals', g);
+      }
+      return;
+    }
+
+    const selectGoalCard = e.target.closest('[data-select-goal]');
+    if (selectGoalCard) {
+      const clickedId = selectGoalCard.dataset.selectGoal;
+      selectedGoalId = String(selectedGoalId) === String(clickedId) ? null : clickedId;
+      render();
+      const panelEl = $('goalMovementsCard');
+      if (panelEl && window.innerWidth < 1040) {
+        panelEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
       return;
     }
@@ -3280,7 +3401,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.1').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.2').then(reg => reg.update()).catch(() => {});
   }
 
   render();

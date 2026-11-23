@@ -1,13 +1,13 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.1)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.2)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.8.1 + Painel dividido no Calendário com barra de redimensionamento, botões 'Ver mês inteiro', 'Mover lado' e 'Ampliar')
+- index.html                    -> Raiz do projeto (v2.8.2 + Painel de movimentos dos objetivos na área inferior do separador Objetivos)
 - manifest.webmanifest          -> Raiz do projeto (Manifesto PWA)
-- sw.js                         -> Raiz do projeto (Cache PWA v2.8.1)
-- css/styles.css                -> Pasta css/ (Layout lado a lado redimensionável e painel de movimentos fixo com scroll próprio para maximizar a leitura)
-- js/config.js                  -> Pasta js/ (Versão v2.8.1)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.8.2)
+- css/styles.css                -> Pasta css/ (Painel a toda a largura sob os cartões de objetivos e destaque do cartão selecionado)
+- js/config.js                  -> Pasta js/ (Versão v2.8.2)
 - js/finance-engine.js          -> Pasta js/
 - js/supabase-sync.js           -> Pasta js/
-- js/app.js                     -> Pasta js/ (Controlador de arrasto do divisor, memorização da largura e posição escolhidas no dispositivo, e alternância Dia / Mês inteiro)
+- js/app.js                     -> Pasta js/ (Consulta imediata dos reforços e resgates ao clicar num objetivo, resumo acumulado e botão rápido '+ Reforçar / Resgatar')
 - icons/                        -> Pasta icons/ (Ícones e ecrã de arranque oficiais DuoFin 2)

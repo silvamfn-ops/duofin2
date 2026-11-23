@@ -1182,7 +1182,7 @@ body.privacy-masked .cc-spent-sub strong {
 
   #orcamento.view.active > .card,
   #dados.view.active > .card,
-  #objetivo.view.active > .card,
+  #objetivo.view.active > .card:not(.goal-movements-panel),
   #objetivo.view.active > .alert,
   #objetivo.view.active > #goalList {
     break-inside: avoid;
@@ -1192,6 +1192,20 @@ body.privacy-masked .cc-spent-sub strong {
     margin: 0 0 18px 0;
     vertical-align: top;
   }
+
+  #objetivo.view.active > .goal-movements-panel {
+    column-span: all;
+    display: block;
+    width: 100%;
+    margin: 4px 0 0 0;
+  }
+
+  .goal-movements-panel .tx-list-scroll {
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
 
   /* Separador Calendário: grelha lado a lado redimensionável e reposicionável no PC */
   #calendario.view.active {
@@ -1300,3 +1314,20 @@ body.privacy-masked .cc-spent-sub strong {
   }
 }
 
+
+/* Cartões de objetivo clicáveis e destaque do objetivo selecionado */
+.goal-card-clickable {
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
+  border: 1.5px solid var(--line);
+}
+
+.goal-card-clickable:hover {
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.goal-card-clickable.is-selected-goal {
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
