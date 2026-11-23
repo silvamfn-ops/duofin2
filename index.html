@@ -13,8 +13,8 @@
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <link rel="stylesheet" href="./css/styles.css?v=2.7.2">
-  <title>DuoFin 2 v2.7.2 — Gestão financeira a dois</title>
+  <link rel="stylesheet" href="./css/styles.css?v=2.7.3">
+  <title>DuoFin 2 v2.7.3 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
@@ -886,6 +886,21 @@
         </div>
       </div>
 
+      <div class="card" id="installAppCard">
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <div>
+            <h2 style="margin:0">📲 Instalar Aplicação (PC &amp; Telemóvel)</h2>
+            <div class="small">Instala a DuoFin 2 como aplicação nativa no Ambiente de Trabalho, Menu Iniciar ou ecrã principal.</div>
+          </div>
+          <span class="pill" id="installAppBadge">PWA</span>
+        </div>
+        <div id="installAppStatus" class="alert" style="margin:10px 0;font-size:12.5px">Podes instalar a aplicação diretamente neste dispositivo para acesso rápido em janela dedicada.</div>
+        <div class="actions">
+          <button type="button" class="primary" id="installPwaBtn">📲 Instalar aplicação neste dispositivo</button>
+        </div>
+        <div id="installManualGuide" class="inline-editor" hidden style="margin-top:10px;font-size:13px"></div>
+      </div>
+
       <div class="card" style="border-color:var(--red, #dc2626)">
         <h2 style="color:var(--red, #dc2626)">⚠️ Zona de Reinicialização (Limpar Base de Dados)</h2>
         <p class="small">Apaga todos os movimentos, cartões de crédito, objetivos de poupança, regras automáticas e caderno de encargos para começar do zero. Aconselhamos exportar uma cópia de segurança JSON antes de avançar.</p>
@@ -1199,9 +1214,9 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.7.2 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.7.3 · Gestão financeira a dois</footer>
     </div>
   </div>
-  <script type="module" src="./js/app.js?v=2.7.2"></script>
+  <script type="module" src="./js/app.js?v=2.7.3"></script>
 </body>
 </html>

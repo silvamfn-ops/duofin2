@@ -2939,8 +2939,97 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
     };
   }
 
+
+  // --- Instalação PWA (PC / Android / iOS) ---
+  let deferredInstallPrompt = null;
+  function updateInstallAppUi() {
+    const btn = $('installPwaBtn');
+    const statusEl = $('installAppStatus');
+    const badgeEl = $('installAppBadge');
+    const guideEl = $('installManualGuide');
+    if (!btn || !statusEl) return;
+
+    const isStandalone =
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true;
+
+    if (isStandalone) {
+      if (badgeEl) badgeEl.textContent = '✅ Instalada';
+      statusEl.className = 'alert good';
+      statusEl.textContent = '✅ A DuoFin 2 já está instalada e a correr como aplicação neste dispositivo.';
+      btn.hidden = true;
+      if (guideEl) guideEl.hidden = true;
+      return;
+    }
+
+    btn.hidden = false;
+    if (deferredInstallPrompt) {
+      if (badgeEl) badgeEl.textContent = 'Pronta a instalar';
+      statusEl.className = 'alert good';
+      statusEl.textContent = 'O navegador está pronto para instalar a DuoFin 2 neste dispositivo com um clique.';
+      btn.textContent = '📲 Instalar aplicação agora';
+    } else {
+      if (badgeEl) badgeEl.textContent = 'Instalação PWA';
+      statusEl.className = 'alert';
+      statusEl.textContent = 'Clica no botão abaixo para instalar ou ver o atalho rápido do teu navegador.';
+      btn.textContent = '📲 Instalar aplicação neste dispositivo';
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    updateInstallAppUi();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    updateInstallAppUi();
+    showToast('DuoFin 2 instalada com sucesso!', { type: 'success' });
+  });
+
+  if ($('installPwaBtn')) {
+    $('installPwaBtn').onclick = async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice.catch(() => null);
+        if (choice && choice.outcome === 'accepted') {
+          deferredInstallPrompt = null;
+        }
+        updateInstallAppUi();
+        return;
+      }
+
+      const guideEl = $('installManualGuide');
+      if (guideEl) {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(ua);
+        const isEdge = /Edg\//i.test(ua);
+        guideEl.hidden = false;
+        if (isIOS) {
+          guideEl.innerHTML =
+            '<strong>Como instalar no iPhone / iPad (Safari):</strong><br>' +
+            '1. Toca no ícone <b>Partilhar</b> (quadrado com seta para cima) na barra inferior do Safari.<br>' +
+            '2. Desliza para baixo e toca em <b>Adicionar ao ecrã principal</b>.<br>' +
+            '3. Toca em <b>Adicionar</b> no canto superior direito.';
+        } else if (isEdge) {
+          guideEl.innerHTML =
+            '<strong>Como instalar no PC (Microsoft Edge):</strong><br>' +
+            '1. Na extremidade direita da barra de endereços, clica no ícone <b>Aplicação disponível</b> (quadrado com <b>+</b>).<br>' +
+            '2. Ou abre o menu <b>⋯</b> (canto superior direito) → <b>Aplicações</b> → <b>Instalar este site como uma aplicação</b>.';
+        } else {
+          guideEl.innerHTML =
+            '<strong>Como instalar no PC / Android (Google Chrome):</strong><br>' +
+            '1. Na barra de endereços (à direita), clica no ícone <b>Instalar DuoFin 2</b> (ecrã com seta para baixo).<br>' +
+            '2. Ou abre o menu <b>⋮</b> (canto superior direito) → <b>Guardar e partilhar</b> → <b>Instalar página como aplicação…</b>';
+        }
+      }
+    };
+  }
+  updateInstallAppUi();
+
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.7.2').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.7.3').then(reg => reg.update()).catch(() => {});
   }
 
   render();

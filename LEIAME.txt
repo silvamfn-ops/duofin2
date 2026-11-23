@@ -1,14 +1,14 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.7.2)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.7.3)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (v2.7.2 + Painel Categorias, Ordem & Limites editável)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.7.2)
+- index.html               -> Raiz do projeto (v2.7.3 + Cartão 'Instalar Aplicação' no separador Dados junto à Zona de Reinicialização)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.7.3)
 - css/styles.css           -> Pasta css/ (Estilos Desktop & Mobile)
-- js/config.js             -> Pasta js/ (Versão v2.7.2)
+- js/config.js             -> Pasta js/ (Versão v2.7.3)
 - js/finance-engine.js     -> Pasta js/ (Motor financeiro)
 - js/supabase-sync.js      -> Pasta js/ (Sincronização Supabase)
-- js/app.js                -> Pasta js/ (Edição de nome/limite de categorias com atualização em cascata nos movimentos/encargos/regras + botão apagar categoria com reatribuição segura)
+- js/app.js                -> Pasta js/ (Gestão nativa do pedido de instalação PWA beforeinstallprompt + deteção de app já instalada + guia rápido)
 - icons/icon-180.png       -> Pasta icons/ (Ícone Apple Touch DuoFin 2)
 - icons/icon-192.png       -> Pasta icons/ (Ícone PWA 192x192 DuoFin 2)
 - icons/icon-512.png       -> Pasta icons/ (Ícone PWA 512x512 DuoFin 2)
