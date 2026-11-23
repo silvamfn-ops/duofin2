@@ -1,17 +1,14 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.7.1)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.7.2)
 
 1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html               -> Raiz do projeto (v2.7.1 + Barra Lateral Desktop + Lançamento Rápido no Resumo + Cache-busting)
-- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.7.1)
-- css/styles.css           -> Pasta css/ (Sidebar fixa à esquerda no PC + Dashboard Fintech panorâmico em 2 colunas)
-- js/config.js             -> Pasta js/ (Versão v2.7.1)
+- index.html               -> Raiz do projeto (v2.7.2 + Painel Categorias, Ordem & Limites editável)
+- sw.js                    -> Raiz do projeto (Atualiza cache PWA para v2.7.2)
+- css/styles.css           -> Pasta css/ (Estilos Desktop & Mobile)
+- js/config.js             -> Pasta js/ (Versão v2.7.2)
 - js/finance-engine.js     -> Pasta js/ (Motor financeiro)
 - js/supabase-sync.js      -> Pasta js/ (Sincronização Supabase)
-- js/app.js                -> Pasta js/ (Formulário de Lançamento Rápido no Resumo, Gráfico Donut sempre visível e atualização imediata do Service Worker)
+- js/app.js                -> Pasta js/ (Edição de nome/limite de categorias com atualização em cascata nos movimentos/encargos/regras + botão apagar categoria com reatribuição segura)
 - icons/icon-180.png       -> Pasta icons/ (Ícone Apple Touch DuoFin 2)
 - icons/icon-192.png       -> Pasta icons/ (Ícone PWA 192x192 DuoFin 2)
 - icons/icon-512.png       -> Pasta icons/ (Ícone PWA 512x512 DuoFin 2)
-
-2. NOTA IMPORTANTE NO BROWSER DO PC:
-Após fazeres push para o GitHub Pages, aguarda ~30 segundos e prime Ctrl+F5 (ou Cmd+Shift+R) uma vez no PC para substituir imediatamente o Service Worker antigo v2.6.12.
