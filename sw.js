@@ -1,8 +1,13 @@
-const CACHE_NAME = 'duofin2-core-v2.7.3';
+const CACHE_NAME = 'duofin2-core-v2.7.4';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './icons/icon-180.png',
+  './icons/icon-192.png',
+  './icons/icon-192-maskable.png',
+  './icons/icon-512.png',
+  './icons/icon-512-maskable.png',
   './css/styles.css',
   './js/config.js',
   './js/db.js',

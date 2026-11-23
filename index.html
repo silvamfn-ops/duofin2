@@ -13,29 +13,17 @@
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <link rel="stylesheet" href="./css/styles.css?v=2.7.3">
-  <title>DuoFin 2 v2.7.3 — Gestão financeira a dois</title>
+  <link rel="stylesheet" href="./css/styles.css?v=2.7.4">
+  <title>DuoFin 2 v2.7.4 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Bloqueio Local (PIN / Biometria WebAuthn) -->
   <div id="appLockOverlay" class="app-lock-overlay" hidden>
     <div class="app-lock-box" role="dialog" aria-modal="true" aria-labelledby="appLockTitle">
       <svg class="duofin-logo-svg" viewBox="0 0 64 64" width="56" height="56" style="margin:0 auto 12px;display:block" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="dfGreen" x1="8" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#48B888"/>
-      <stop offset="100%" stop-color="#2B8A64"/>
-    </linearGradient>
-    <linearGradient id="dfGold" x1="56" y1="10" x2="12" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#E0B254"/>
-      <stop offset="100%" stop-color="#B8832E"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="#FFFFFF" fill-opacity="0.97"/>
-  <path d="M33 17.5C37.5 12.2 46.5 12.4 51.2 18.2C55.8 23.9 54.5 32.8 48.2 38.6L32 51.5" stroke="url(#dfGold)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M31 17.5C26.5 12.2 17.5 12.4 12.8 18.2C8.2 23.9 9.5 32.8 15.8 38.6L32 51.5C39.5 45.2 46.5 37.8 47.5 27.5C41.5 28.8 36.8 33.2 35.5 39.2" stroke="url(#dfGreen)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M21.5 27.5C21.5 22.8 27.5 21.5 32 26.2C36.5 21.5 42.5 22.8 42.5 27.5" stroke="url(#dfGold)" stroke-width="4.2" stroke-linecap="round"/>
-  <path d="M27.2 32.8C25.1 32.8 23.6 34.2 23.6 35.8C23.6 37.4 25.1 38.8 27.2 38.8C29.6 38.8 34.4 32.8 36.8 32.8C38.9 32.8 40.4 34.2 40.4 35.8C40.4 37.4 38.9 38.8 36.8 38.8C34.4 38.8 29.6 32.8 27.2 32.8Z" stroke="#163554" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#12263D" stroke="#F4F6F8" stroke-width="2"/>
+  <path d="M9.5 10.5C22.5 13.5 31.8 20.5 32.5 31.5C28.2 35.5 25.5 41.2 24.8 48.2C16.8 43.2 13.5 33.8 13.2 23.2C12.9 17.5 11.8 13.8 9.5 10.5Z" fill="#C4BFB3" stroke="#FFFFFF" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M52.8 18.2C47.5 24.2 39.2 27.5 32.5 32.8C26.2 37.8 25.8 45.2 25.8 53.5C37.5 51.2 48.5 45.5 52.8 34.8C55.2 28.8 54.5 23.2 52.8 18.2Z" fill="#77C32A"/>
 </svg>
       <h2 id="appLockTitle" style="margin:0 0 4px">DuoFin bloqueada</h2>
       <p class="small" id="appLockSubtitle" style="margin:0 0 14px">Introduz o PIN de segurança para aceder aos dados financeiros.</p>
@@ -53,21 +41,9 @@
       <div class="wrap header-inner">
         <div class="header-brand-block">
           <div class="brandline"><svg class="duofin-logo-svg" viewBox="0 0 64 64" width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="dfGreen" x1="8" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#48B888"/>
-      <stop offset="100%" stop-color="#2B8A64"/>
-    </linearGradient>
-    <linearGradient id="dfGold" x1="56" y1="10" x2="12" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#E0B254"/>
-      <stop offset="100%" stop-color="#B8832E"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="#FFFFFF" fill-opacity="0.97"/>
-  <path d="M33 17.5C37.5 12.2 46.5 12.4 51.2 18.2C55.8 23.9 54.5 32.8 48.2 38.6L32 51.5" stroke="url(#dfGold)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M31 17.5C26.5 12.2 17.5 12.4 12.8 18.2C8.2 23.9 9.5 32.8 15.8 38.6L32 51.5C39.5 45.2 46.5 37.8 47.5 27.5C41.5 28.8 36.8 33.2 35.5 39.2" stroke="url(#dfGreen)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M21.5 27.5C21.5 22.8 27.5 21.5 32 26.2C36.5 21.5 42.5 22.8 42.5 27.5" stroke="url(#dfGold)" stroke-width="4.2" stroke-linecap="round"/>
-  <path d="M27.2 32.8C25.1 32.8 23.6 34.2 23.6 35.8C23.6 37.4 25.1 38.8 27.2 38.8C29.6 38.8 34.4 32.8 36.8 32.8C38.9 32.8 40.4 34.2 40.4 35.8C40.4 37.4 38.9 38.8 36.8 38.8C34.4 38.8 29.6 32.8 27.2 32.8Z" stroke="#163554" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#12263D" stroke="#F4F6F8" stroke-width="2"/>
+  <path d="M9.5 10.5C22.5 13.5 31.8 20.5 32.5 31.5C28.2 35.5 25.5 41.2 24.8 48.2C16.8 43.2 13.5 33.8 13.2 23.2C12.9 17.5 11.8 13.8 9.5 10.5Z" fill="#C4BFB3" stroke="#FFFFFF" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M52.8 18.2C47.5 24.2 39.2 27.5 32.5 32.8C26.2 37.8 25.8 45.2 25.8 53.5C37.5 51.2 48.5 45.5 52.8 34.8C55.2 28.8 54.5 23.2 52.8 18.2Z" fill="#77C32A"/>
 </svg><h1>DuoFin<span class="brand-accent-2">2</span></h1></div>
           <p>As nossas finanças. O nosso equilíbrio.</p>
         </div>
@@ -1214,9 +1190,9 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.7.3 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.7.4 · Gestão financeira a dois</footer>
     </div>
   </div>
-  <script type="module" src="./js/app.js?v=2.7.3"></script>
+  <script type="module" src="./js/app.js?v=2.7.4"></script>
 </body>
 </html>
