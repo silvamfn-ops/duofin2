@@ -416,7 +416,15 @@ export class DuoFinSync {
       if (hhRes.data && (Number(hhRes.data.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
         state.household = hhRes.data;
       }
-      if (catRes.data) state.categories = this.mergeTable('categories', state.categories, catRes.data, outbox);
+      if (catRes.data) {
+        const remoteActiveCats = catRes.data.filter(c => !c.deleted_at);
+        const hasPendingCatChanges = outbox.some(item => item.table === 'categories');
+        if (remoteActiveCats.length > 0 && !hasPendingCatChanges && this.isUntouchedStarterState(state)) {
+          state.categories = remoteActiveCats;
+        } else {
+          state.categories = this.mergeCategoriesSmart(state.categories, catRes.data, outbox);
+        }
+      }
       if (ccRes.data) state.credit_cards = this.mergeTable('credit_cards', state.credit_cards, ccRes.data, outbox);
       if (goalRes.data) state.savings_goals = this.mergeTable('savings_goals', state.savings_goals, goalRes.data, outbox);
       if (recRes.data) state.recurring_expenses = this.mergeTable('recurring_expenses', state.recurring_expenses, recRes.data, outbox);
@@ -434,6 +442,46 @@ export class DuoFinSync {
     } finally {
       this.isPulling = false;
     }
+  }
+
+  isUntouchedStarterState(state) {
+    if (!state) return true;
+    const hasTx = (state.transactions || []).some(t => !t.deleted_at);
+    const hasCc = (state.credit_cards || []).some(c => !c.deleted_at);
+    const hasGoals = (state.savings_goals || []).some(g => !g.deleted_at);
+    const hasRec = (state.recurring_expenses || []).some(r => !r.deleted_at);
+    if (hasTx || hasCc || hasGoals || hasRec) return false;
+    const localCats = (state.categories || []).filter(c => !c.deleted_at);
+    if (!localCats.length) return true;
+    // Starter categories in a fresh install all have budget 0 and default ids (e.g. cat-...)
+    return localCats.every(c => (Number(c.budget) || 0) === 0 && !c.household_id);
+  }
+
+  mergeCategoriesSmart(localList, remoteList, outbox = getOutbox()) {
+    const merged = this.mergeTable('categories', localList, remoteList, outbox);
+    const remoteIds = new Set(remoteList.filter(r => !r.deleted_at).map(r => String(r.id)));
+    const remoteNames = new Set(
+      remoteList
+        .filter(r => !r.deleted_at && r.name)
+        .map(r => String(r.name).trim().toLowerCase())
+    );
+    const pendingIds = new Set(
+      outbox
+        .filter(item => item.table === 'categories' && item.record?.id)
+        .map(item => String(item.record.id))
+    );
+    // Drop unpushed local starter categories that have no household_id if remote already defines the household categories
+    if (remoteIds.size > 0) {
+      return merged.filter(cat => {
+        const id = String(cat.id);
+        if (remoteIds.has(id) || pendingIds.has(id)) return true;
+        if (!cat.household_id && (Number(cat.budget) || 0) === 0) return false;
+        const norm = String(cat.name || '').trim().toLowerCase();
+        if (remoteNames.has(norm) && !cat.household_id) return false;
+        return true;
+      });
+    }
+    return merged;
   }
 
   mergeTable(tableName, localList, remoteList, outbox = getOutbox()) {
@@ -492,7 +540,9 @@ export class DuoFinSync {
           const record = payload.new;
           if (!record) return;
           const state = this.getState();
-          state[table] = this.mergeTable(table, state[table], [record]);
+          state[table] = table === 'categories'
+            ? this.mergeCategoriesSmart(state[table], [record])
+            : this.mergeTable(table, state[table], [record]);
           saveLocalState(state);
           this.lastSyncAt = Date.now();
           this.onRemoteUpdate();

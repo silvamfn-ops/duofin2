@@ -3401,7 +3401,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.2').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.3').then(reg => reg.update()).catch(() => {});
   }
 
   render();
