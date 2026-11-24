@@ -1,13 +1,18 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.5)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.6)
 
-1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
+1. NOVIDADE INCLUÍDA (Objetivos sem Montante-Alvo / Fundo Livre):
+- O campo «Montante-alvo (€)» na criação e edição de objetivos passou a ser opcional.
+- Se deixares o montante vazio (ou 0), o objetivo funciona como «Fundo livre» (ideal para Fundo de Emergência contínuo ou reserva sem teto fixo): mostra o saldo acumulado e todos os reforços/resgates sem barra de percentagem.
+- Compatível 100% com a tabela `savings_goals` existente no Supabase (sem necessidade de alterar a base de dados).
+
+2. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.8.5)
+- index.html                    -> Raiz do projeto (v2.8.6, campo montante-alvo opcional)
 - manifest.webmanifest          -> Raiz do projeto
-- sw.js                         -> Raiz do projeto (Cache PWA v2.8.5)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.8.6)
 - css/styles.css                -> Pasta css/
-- js/config.js                  -> Pasta js/ (Versão v2.8.5)
+- js/config.js                  -> Pasta js/ (Versão v2.8.6)
 - js/finance-engine.js          -> Pasta js/
-- js/supabase-sync.js           -> Pasta js/ (Correção definitiva do botão 'Limpar fila presa' para remover entradas antigas/órfãs e normalização automática de barras finais no URL Supabase)
-- js/app.js                     -> Pasta js/ (Atualização imediata do contador da fila e descarga limpa após limpar a fila presa)
+- js/supabase-sync.js           -> Pasta js/
+- js/app.js                     -> Pasta js/ (Suporte visual para objetivos sem montante-alvo / «Fundo livre»)
 - icons/                        -> Pasta icons/

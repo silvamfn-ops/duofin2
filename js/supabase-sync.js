@@ -109,14 +109,24 @@ export class DuoFinSync {
 
   clearAllOutbox() {
     const queue = getOutbox();
-    if (!queue.length) return;
-    const keys = queue.map(item => {
-      const pk = item.table === 'household_meta' || item.table === 'households'
-        ? (this.householdId || item.record?.household_id || item.record?.id)
-        : item.record?.id;
-      return `${item.table}:${pk}:${item.queuedAt}`;
-    });
-    clearOutboxItems(keys);
+    if (queue.length) {
+      const keys = queue.map(item => {
+        const pk = item.table === 'household_meta' || item.table === 'households'
+          ? (this.householdId || item.record?.household_id || item.record?.id || '')
+          : (item.record?.id ?? '');
+        return `${item.table}:${pk}:${item.queuedAt}`;
+      });
+      clearOutboxItems(keys);
+    }
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && /outbox/i.test(k)) {
+          localStorage.setItem(k, '[]');
+        }
+      }
+    } catch (_) {}
+    this.flushPendingAgain = false;
     this.lastOutboxErrors = [];
     this.onStatusChange('synced', `Fila limpa (${this.user?.email || 'ligado'})`);
   }
@@ -131,12 +141,16 @@ export class DuoFinSync {
 
   saveConfig(url, anonKey, householdId = this.householdId) {
     this.householdId = householdId;
-    localStorage.setItem(CFG_KEY, JSON.stringify({ url: url.trim(), anonKey: anonKey.trim(), householdId }));
+    const cleanUrl = String(url || '').trim().replace(/\/+$/, '');
+    const cleanKey = String(anonKey || '').trim();
+    localStorage.setItem(CFG_KEY, JSON.stringify({ url: cleanUrl, anonKey: cleanKey, householdId }));
   }
 
   isConfigured() {
     const cfg = this.getConfig();
-    return /^https:\/\/.+\.supabase\.co$/i.test(cfg.url) && cfg.anonKey.length > 20;
+    const cleanUrl = String(cfg.url || '').trim().replace(/\/+$/, '');
+    const cleanKey = String(cfg.anonKey || '').trim();
+    return /^https:\/\/.+\.supabase\.co$/i.test(cleanUrl) && cleanKey.length > 20;
   }
 
   init() {

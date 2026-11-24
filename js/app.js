@@ -561,7 +561,11 @@ function render() {
       ? activeGoals
           .map(g => {
             const saved = goalTotal(state, g.id);
-            const pct = g.target > 0 ? Math.min(100, (saved / g.target) * 100) : 0;
+            const hasTarget = Number(g.target) > 0;
+            if (!hasTarget) {
+              return `<div class="item"><div class="row"><b>${esc(g.name)}</b><span class="small"><b>${eur(saved)}</b> · Fundo livre</span></div></div>`;
+            }
+            const pct = Math.min(100, (saved / g.target) * 100);
             return `<div class="item"><div class="row"><b>${esc(g.name)}</b><span class="small">${eur(saved)} / ${eur(g.target)} (${Math.round(pct)}%)</span></div><div class="progress"><i style="width:${pct}%"></i></div></div>`;
           })
           .join('')
@@ -576,10 +580,14 @@ function render() {
     ? activeGoals
         .map(g => {
           const saved = goalTotal(state, g.id);
-          const pct = g.target > 0 ? Math.min(100, (saved / g.target) * 100) : 0;
+          const hasTarget = Number(g.target) > 0;
+          const pct = hasTarget ? Math.min(100, (saved / g.target) * 100) : 0;
           const isSel = String(selectedGoalId) === String(g.id);
           const txCount = (state.transactions || []).filter(t => !t.deleted_at && String(t.goal_id) === String(g.id)).length;
-          return `<div class="card goal-card-clickable${isSel ? ' is-selected-goal' : ''}" data-select-goal="${esc(g.id)}" title="Clica para ver os movimentos deste objetivo"><div class="row"><b>${esc(g.name)}</b><div class="row" style="gap:6px"><span class="pill">${Math.round(pct)}%</span><button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-goal="${esc(g.id)}" title="Editar objetivo">✎</button><button type="button" class="danger" data-del-goal="${esc(g.id)}" title="Eliminar objetivo">×</button></div></div><div class="small">${eur(saved)} / ${eur(g.target)}${g.deadline ? ` · Meta: ${fmtDate(g.deadline)}` : ''} · ${txCount} mov.</div><div class="progress"><i style="width:${pct}%"></i></div></div>`;
+          const badgeHtml = hasTarget ? `<span class="pill">${Math.round(pct)}%</span>` : `<span class="pill">Fundo livre</span>`;
+          const amountSub = hasTarget ? `${eur(saved)} / ${eur(g.target)}` : `Acumulado: <b>${eur(saved)}</b>`;
+          const progressHtml = hasTarget ? `<div class="progress"><i style="width:${pct}%"></i></div>` : '';
+          return `<div class="card goal-card-clickable${isSel ? ' is-selected-goal' : ''}" data-select-goal="${esc(g.id)}" title="Clica para ver os movimentos deste objetivo"><div class="row"><b>${esc(g.name)}</b><div class="row" style="gap:6px">${badgeHtml}<button type="button" class="ghost" style="padding:5px 9px;font-size:12px" data-edit-goal="${esc(g.id)}" title="Editar objetivo">✎</button><button type="button" class="danger" data-del-goal="${esc(g.id)}" title="Eliminar objetivo">×</button></div></div><div class="small">${amountSub}${g.deadline ? ` · Meta: ${fmtDate(g.deadline)}` : ''} · ${txCount} mov.</div>${progressHtml}</div>`;
         })
         .join('')
     : '<div class="card empty">Ainda não existem objetivos de poupança.</div>';
@@ -1827,7 +1835,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (g) {
         $('goalId').value = g.id;
         $('goalName').value = g.name;
-        $('goalTarget').value = g.target;
+        $('goalTarget').value = Number(g.target) > 0 ? g.target : '';
         $('goalDeadline').value = g.deadline || '';
         $('goalFormTitle').textContent = 'Editar objetivo de poupança';
         $('goalSave').textContent = 'Guardar alterações';
@@ -2811,11 +2819,13 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   $('goalForm').onsubmit = e => {
     e.preventDefault();
     const editId = $('goalId').value;
+    const rawTarget = String($('goalTarget').value || '').trim();
+    const parsedTarget = rawTarget === '' ? 0 : Math.max(0, Number(rawTarget) || 0);
     if (editId) {
       const g = state.savings_goals.find(x => String(x.id) === String(editId));
       if (g) {
         g.name = $('goalName').value.trim();
-        g.target = Number($('goalTarget').value);
+        g.target = parsedTarget;
         g.deadline = $('goalDeadline').value || null;
         mutate('savings_goals', g);
         showToast('Objetivo atualizado.', { type: 'success' });
@@ -2827,7 +2837,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
     const goal = {
       id: uid('goal'),
       name: $('goalName').value.trim(),
-      target: Number($('goalTarget').value),
+      target: parsedTarget,
       deadline: $('goalDeadline').value || null,
       status: 'active',
       updated_at: Date.now()
@@ -2923,10 +2933,13 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
     };
   }
   if ($('clearOutboxBtn')) {
-    $('clearOutboxBtn').onclick = () => {
+    $('clearOutboxBtn').onclick = async () => {
       if (!confirm('Remover os itens pendentes presos na fila de sincronização deste dispositivo?')) return;
       sync.clearAllOutbox();
+      updateHouseholdPanels();
+      render();
       showToast('Fila de sincronização limpa!', { type: 'success' });
+      await sync.fullPull({ force: true });
     };
   }
 
@@ -3405,7 +3418,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.4').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.6').then(reg => reg.update()).catch(() => {});
   }
 
   render();
