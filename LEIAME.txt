@@ -1,18 +1,13 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.4 — Sincronização Reforçada)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.5)
 
-1. ATIVAR TEMPO REAL NO SUPABASE (PASSO ÚNICO E RECOMENDADO):
-- Abre o painel do teu projeto no Supabase -> SQL Editor -> New query.
-- Cola o conteúdo do ficheiro `supabase_v284_realtime_fix.sql` incluído neste ZIP e clica em Run.
-- Este comando ativa a publicação `supabase_realtime` e `REPLICA IDENTITY FULL` nas 7 tabelas da DuoFin 2 para que alterações feitas no PC ou no telemóvel apareçam instantaneamente no outro aparelho.
-
-2. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
+1. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.8.4)
+- index.html                    -> Raiz do projeto (v2.8.5)
 - manifest.webmanifest          -> Raiz do projeto
-- sw.js                         -> Raiz do projeto (Cache PWA v2.8.4)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.8.5)
 - css/styles.css                -> Pasta css/
-- js/config.js                  -> Pasta js/ (Versão v2.8.4)
+- js/config.js                  -> Pasta js/ (Versão v2.8.5)
 - js/finance-engine.js          -> Pasta js/
-- js/supabase-sync.js           -> Pasta js/ (Fila contínua sem perda de alterações sequenciais, relógio monotónico contra desvios de hora entre aparelhos, canal BroadcastChannel entre janelas e heartbeat de 15s)
-- js/app.js                     -> Pasta js/ (Disparo imediato ao focar a janela/app e timestamps monotónicos)
+- js/supabase-sync.js           -> Pasta js/ (Correção definitiva do botão 'Limpar fila presa' para remover entradas antigas/órfãs e normalização automática de barras finais no URL Supabase)
+- js/app.js                     -> Pasta js/ (Atualização imediata do contador da fila e descarga limpa após limpar a fila presa)
 - icons/                        -> Pasta icons/
