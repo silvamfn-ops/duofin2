@@ -75,9 +75,10 @@ const sync = new DuoFinSync(
 );
 
 function mutate(table, record) {
-  record.updated_at = Date.now();
+  record.updated_at = sync ? sync.nextMonotonicTimestamp() : Date.now();
   saveLocalState(state);
   enqueueOutbox(table, record);
+  if (sync) sync.notifyLocalMutation(table, record);
   render();
   sync.flushOutbox();
 }
@@ -3265,6 +3266,9 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   window.addEventListener('pageshow', e => {
     if (e.persisted) sync.resumeFromBackground();
   });
+  window.addEventListener('focus', () => {
+    sync.resumeFromBackground();
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       sync.resumeFromBackground();
@@ -3401,7 +3405,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.3').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.4').then(reg => reg.update()).catch(() => {});
   }
 
   render();

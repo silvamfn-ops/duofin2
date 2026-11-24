@@ -60,13 +60,51 @@ export class DuoFinSync {
     this.channel = null;
     this.channelHealthy = false;
     this.isFlushing = false;
+    this.flushPendingAgain = false;
     this.isPulling = false;
+    this.pullPendingAgain = false;
     this.retryAttempt = 0;
     this.retryTimer = null;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
+    this.resumeDebounceTimer = null;
     this.lastSyncAt = null;
+    this.lastFullPullAt = 0;
+    this.maxKnownUpdatedAt = Date.now();
     this.lastOutboxErrors = [];
+    this.bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('duofin2-sync-bus') : null;
+    if (this.bc) {
+      this.bc.onmessage = ev => {
+        const msg = ev?.data;
+        if (!msg || !this.householdId || msg.householdId !== this.householdId) return;
+        if (msg.type === 'local_mutation' || msg.type === 'remote_pulled') {
+          this.fullPull({ silent: true, force: true });
+        }
+      };
+    }
+  }
+
+  observeTimestamp(ts) {
+    const num = Number(ts) || 0;
+    if (num > this.maxKnownUpdatedAt) {
+      this.maxKnownUpdatedAt = num;
+    }
+  }
+
+  nextMonotonicTimestamp() {
+    const now = Date.now();
+    const next = now > this.maxKnownUpdatedAt ? now : this.maxKnownUpdatedAt + 1;
+    this.maxKnownUpdatedAt = next;
+    return next;
+  }
+
+  notifyLocalMutation(table, record) {
+    if (record && record.updated_at) this.observeTimestamp(record.updated_at);
+    if (this.bc && this.householdId) {
+      try {
+        this.bc.postMessage({ type: 'local_mutation', householdId: this.householdId, table, at: Date.now() });
+      } catch {}
+    }
   }
 
   clearAllOutbox() {
@@ -110,7 +148,7 @@ export class DuoFinSync {
     this.householdId = cfg.householdId;
     this.supabase = createClient(cfg.url, cfg.anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
-      realtime: { params: { eventsPerSecond: 10 } }
+      realtime: { params: { eventsPerSecond: 15 } }
     });
     return true;
   }
@@ -125,9 +163,8 @@ export class DuoFinSync {
     if (!this.supabase && !this.init()) return null;
     const { data: { session }, error } = await this.supabase.auth.getSession();
     if (error || !session) return null;
-    // Refresh token proactively if expiring within 90 seconds
     const expiresAtMs = (session.expires_at || 0) * 1000;
-    if (expiresAtMs && expiresAtMs - Date.now() < 90_000) {
+    if (expiresAtMs && expiresAtMs - Date.now() < 120_000) {
       const { data: refreshed } = await this.supabase.auth.refreshSession();
       if (refreshed?.session) {
         this.user = refreshed.session.user;
@@ -142,12 +179,14 @@ export class DuoFinSync {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = setInterval(async () => {
       if (document.visibilityState !== 'visible' || !navigator.onLine || !this.householdId) return;
-      await this.flushOutbox();
+      if (getOutbox().length > 0) {
+        await this.flushOutbox();
+      }
       await this.fullPull({ silent: true });
       if (!this.channelHealthy) {
         this.subscribeRealtime();
       }
-    }, 30_000);
+    }, 15_000);
   }
 
   stopHeartbeat() {
@@ -182,18 +221,24 @@ export class DuoFinSync {
     }
 
     await this.flushOutbox();
-    await this.fullPull();
+    await this.fullPull({ force: true });
     this.subscribeRealtime();
     this.startHeartbeat();
   }
 
-  async resumeFromBackground() {
+  resumeFromBackground() {
     if (!this.isConfigured()) return;
-    const session = await this.ensureValidSession();
-    if (!session || !this.householdId) return;
-    await this.flushOutbox();
-    await this.fullPull({ silent: true });
-    this.subscribeRealtime();
+    if (this.resumeDebounceTimer) clearTimeout(this.resumeDebounceTimer);
+    this.resumeDebounceTimer = setTimeout(async () => {
+      this.resumeDebounceTimer = null;
+      const session = await this.ensureValidSession();
+      if (!session || !this.householdId) return;
+      await this.flushOutbox();
+      await this.fullPull({ silent: true, force: true });
+      if (!this.channelHealthy) {
+        this.subscribeRealtime();
+      }
+    }, 180);
   }
 
   async signIn(email, password) {
@@ -220,6 +265,7 @@ export class DuoFinSync {
     this.stopHeartbeat();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.resumeDebounceTimer) clearTimeout(this.resumeDebounceTimer);
     if (this.channel && this.supabase) this.supabase.removeChannel(this.channel);
     this.channel = null;
     this.channelHealthy = false;
@@ -242,7 +288,7 @@ export class DuoFinSync {
     if (hasLocalData) {
       await this.queueAllLocalToOutbox();
     }
-    await this.fullPull();
+    await this.fullPull({ force: true });
     this.subscribeRealtime();
     this.startHeartbeat();
     return hid;
@@ -261,7 +307,7 @@ export class DuoFinSync {
     if (error) throw error;
     const cfg = this.getConfig();
     this.saveConfig(cfg.url, cfg.anonKey, hid);
-    await this.fullPull();
+    await this.fullPull({ force: true });
     this.subscribeRealtime();
     this.startHeartbeat();
     return hid;
@@ -269,19 +315,20 @@ export class DuoFinSync {
 
   async queueAllLocalToOutbox() {
     const st = this.getState();
-    enqueueOutbox('households', { ...st.household, id: this.householdId });
-    st.categories.forEach(c => enqueueOutbox('categories', c));
-    st.credit_cards.forEach(c => enqueueOutbox('credit_cards', c));
-    st.savings_goals.forEach(g => enqueueOutbox('savings_goals', g));
-    st.recurring_expenses.forEach(r => enqueueOutbox('recurring_expenses', r));
-    st.transactions.forEach(t => enqueueOutbox('transactions', t));
-    enqueueOutbox('household_meta', { ...st.meta, household_id: this.householdId });
+    const ts = this.nextMonotonicTimestamp();
+    enqueueOutbox('households', { ...st.household, id: this.householdId, updated_at: ts });
+    st.categories.forEach(c => enqueueOutbox('categories', { ...c, updated_at: c.updated_at || ts }));
+    st.credit_cards.forEach(c => enqueueOutbox('credit_cards', { ...c, updated_at: c.updated_at || ts }));
+    st.savings_goals.forEach(g => enqueueOutbox('savings_goals', { ...g, updated_at: g.updated_at || ts }));
+    st.recurring_expenses.forEach(r => enqueueOutbox('recurring_expenses', { ...r, updated_at: r.updated_at || ts }));
+    st.transactions.forEach(t => enqueueOutbox('transactions', { ...t, updated_at: t.updated_at || ts }));
+    enqueueOutbox('household_meta', { ...st.meta, household_id: this.householdId, updated_at: st.meta?.updated_at || ts });
     await this.flushOutbox();
   }
 
   scheduleOutboxRetry() {
     if (this.retryTimer) clearTimeout(this.retryTimer);
-    const delays = [4000, 10000, 20000, 30000];
+    const delays = [2500, 6000, 12000, 25000];
     const waitMs = delays[Math.min(this.retryAttempt, delays.length - 1)];
     this.retryAttempt += 1;
     this.retryTimer = setTimeout(() => {
@@ -290,7 +337,11 @@ export class DuoFinSync {
   }
 
   async flushOutbox() {
-    if (!this.supabase || !this.householdId || this.isFlushing) return;
+    if (!this.supabase || !this.householdId) return;
+    if (this.isFlushing) {
+      this.flushPendingAgain = true;
+      return;
+    }
     if (!navigator.onLine) {
       this.onStatusChange('offline', 'Sem internet — alterações guardadas localmente.');
       return;
@@ -299,6 +350,7 @@ export class DuoFinSync {
     if (!queue.length) return;
 
     this.isFlushing = true;
+    this.flushPendingAgain = false;
     this.onStatusChange('syncing', `A sincronizar ${queue.length} alteração(ões)...`);
     const processed = [];
     const failedDetails = [];
@@ -312,7 +364,6 @@ export class DuoFinSync {
         return;
       }
 
-      // Group queue items by table and deduplicate latest version per record key for atomic batch upserts
       const grouped = new Map();
       for (const item of queue) {
         if (!grouped.has(item.table)) grouped.set(item.table, []);
@@ -329,6 +380,7 @@ export class DuoFinSync {
           else rec.household_id = this.householdId;
 
           const clean = sanitizeRecord(table, rec);
+          this.observeTimestamp(clean.updated_at);
           const pk = String(clean[conflictCol]);
           const prev = dedupMap.get(pk);
           if (!prev || (Number(clean.updated_at) || 0) >= (Number(prev.updated_at) || 0)) {
@@ -344,7 +396,6 @@ export class DuoFinSync {
             processed.push(`${item.table}:${pk}:${item.queuedAt}`);
           }
         } else {
-          // Fallback to item-by-item upsert if a single record in the batch caused an error
           console.warn(`Erro lote ${table}:`, error.message);
           for (const item of items) {
             const rec = { ...item.record };
@@ -375,18 +426,34 @@ export class DuoFinSync {
         this.retryAttempt = 0;
         this.lastSyncAt = Date.now();
         this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
+        if (this.bc && this.householdId) {
+          try {
+            this.bc.postMessage({ type: 'remote_pulled', householdId: this.householdId, at: Date.now() });
+          } catch {}
+        }
       }
     } catch (err) {
       this.onStatusChange('offline', 'Falha temporária de rede — nova tentativa automática em breve.');
       this.scheduleOutboxRetry();
     } finally {
       this.isFlushing = false;
+      if (this.flushPendingAgain || (failedCount === 0 && getOutbox().length > 0)) {
+        this.flushPendingAgain = false;
+        setTimeout(() => this.flushOutbox(), 80);
+      }
     }
   }
 
-  async fullPull({ silent = false } = {}) {
-    if (!this.supabase || !this.householdId || this.isPulling || !navigator.onLine) return;
+  async fullPull({ silent = false, force = false } = {}) {
+    if (!this.supabase || !this.householdId || !navigator.onLine) return;
+    if (this.isPulling) {
+      this.pullPendingAgain = true;
+      return;
+    }
+    if (!force && Date.now() - this.lastFullPullAt < 1800) return;
     this.isPulling = true;
+    this.pullPendingAgain = false;
+    this.lastFullPullAt = Date.now();
     try {
       const session = await this.ensureValidSession();
       if (!session) return;
@@ -413,10 +480,14 @@ export class DuoFinSync {
       const state = this.getState();
       const outbox = getOutbox();
 
-      if (hhRes.data && (Number(hhRes.data.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
-        state.household = hhRes.data;
+      if (hhRes.data) {
+        this.observeTimestamp(hhRes.data.updated_at);
+        if ((Number(hhRes.data.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
+          state.household = hhRes.data;
+        }
       }
       if (catRes.data) {
+        catRes.data.forEach(r => this.observeTimestamp(r.updated_at));
         const remoteActiveCats = catRes.data.filter(c => !c.deleted_at);
         const hasPendingCatChanges = outbox.some(item => item.table === 'categories');
         if (remoteActiveCats.length > 0 && !hasPendingCatChanges && this.isUntouchedStarterState(state)) {
@@ -425,12 +496,27 @@ export class DuoFinSync {
           state.categories = this.mergeCategoriesSmart(state.categories, catRes.data, outbox);
         }
       }
-      if (ccRes.data) state.credit_cards = this.mergeTable('credit_cards', state.credit_cards, ccRes.data, outbox);
-      if (goalRes.data) state.savings_goals = this.mergeTable('savings_goals', state.savings_goals, goalRes.data, outbox);
-      if (recRes.data) state.recurring_expenses = this.mergeTable('recurring_expenses', state.recurring_expenses, recRes.data, outbox);
-      if (txRes.data) state.transactions = this.mergeTable('transactions', state.transactions, txRes.data, outbox);
-      if (metaRes.data && (Number(metaRes.data.updated_at) || 0) >= (Number(state.meta.updated_at) || 0)) {
-        state.meta = metaRes.data;
+      if (ccRes.data) {
+        ccRes.data.forEach(r => this.observeTimestamp(r.updated_at));
+        state.credit_cards = this.mergeTable('credit_cards', state.credit_cards, ccRes.data, outbox);
+      }
+      if (goalRes.data) {
+        goalRes.data.forEach(r => this.observeTimestamp(r.updated_at));
+        state.savings_goals = this.mergeTable('savings_goals', state.savings_goals, goalRes.data, outbox);
+      }
+      if (recRes.data) {
+        recRes.data.forEach(r => this.observeTimestamp(r.updated_at));
+        state.recurring_expenses = this.mergeTable('recurring_expenses', state.recurring_expenses, recRes.data, outbox);
+      }
+      if (txRes.data) {
+        txRes.data.forEach(r => this.observeTimestamp(r.updated_at));
+        state.transactions = this.mergeTable('transactions', state.transactions, txRes.data, outbox);
+      }
+      if (metaRes.data) {
+        this.observeTimestamp(metaRes.data.updated_at);
+        if ((Number(metaRes.data.updated_at) || 0) >= (Number(state.meta.updated_at) || 0)) {
+          state.meta = metaRes.data;
+        }
       }
 
       saveLocalState(state);
@@ -441,6 +527,10 @@ export class DuoFinSync {
       }
     } finally {
       this.isPulling = false;
+      if (this.pullPendingAgain) {
+        this.pullPendingAgain = false;
+        setTimeout(() => this.fullPull({ silent: true, force: true }), 120);
+      }
     }
   }
 
@@ -453,7 +543,6 @@ export class DuoFinSync {
     if (hasTx || hasCc || hasGoals || hasRec) return false;
     const localCats = (state.categories || []).filter(c => !c.deleted_at);
     if (!localCats.length) return true;
-    // Starter categories in a fresh install all have budget 0 and default ids (e.g. cat-...)
     return localCats.every(c => (Number(c.budget) || 0) === 0 && !c.household_id);
   }
 
@@ -470,7 +559,6 @@ export class DuoFinSync {
         .filter(item => item.table === 'categories' && item.record?.id)
         .map(item => String(item.record.id))
     );
-    // Drop unpushed local starter categories that have no household_id if remote already defines the household categories
     if (remoteIds.size > 0) {
       return merged.filter(cat => {
         const id = String(cat.id);
@@ -495,6 +583,7 @@ export class DuoFinSync {
 
     remoteList.forEach(rem => {
       const id = String(rem.id);
+      if (rem.updated_at) this.observeTimestamp(rem.updated_at);
       const pending = pendingMap.get(id);
       if (pending && (Number(pending.updated_at) || 0) >= (Number(rem.updated_at) || 0)) {
         map.set(id, pending);
@@ -537,15 +626,24 @@ export class DuoFinSync {
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: `household_id=eq.${this.householdId}` },
         payload => {
-          const record = payload.new;
-          if (!record) return;
           const state = this.getState();
-          state[table] = table === 'categories'
-            ? this.mergeCategoriesSmart(state[table], [record])
-            : this.mergeTable(table, state[table], [record]);
+          if (payload.eventType === 'DELETE' && payload.old?.id) {
+            const delId = String(payload.old.id);
+            state[table] = (state[table] || []).filter(item => String(item.id) !== delId);
+          } else {
+            const record = payload.new;
+            if (!record) return;
+            this.observeTimestamp(record.updated_at);
+            state[table] = table === 'categories'
+              ? this.mergeCategoriesSmart(state[table], [record])
+              : this.mergeTable(table, state[table], [record]);
+          }
           saveLocalState(state);
           this.lastSyncAt = Date.now();
           this.onRemoteUpdate();
+          if (getOutbox().length === 0) {
+            this.onStatusChange('synced', `Sincronizado (${this.user?.email || 'ligado'}${this.formatLastSyncTime()})`);
+          }
         }
       );
     });
@@ -556,6 +654,7 @@ export class DuoFinSync {
       payload => {
         if (!payload.new) return;
         const state = this.getState();
+        this.observeTimestamp(payload.new.updated_at);
         if ((Number(payload.new.updated_at) || 0) >= (Number(state.household.updated_at) || 0)) {
           state.household = payload.new;
           saveLocalState(state);
@@ -571,6 +670,7 @@ export class DuoFinSync {
       payload => {
         if (!payload.new) return;
         const state = this.getState();
+        this.observeTimestamp(payload.new.updated_at);
         if ((Number(payload.new.updated_at) || 0) >= (Number(state.meta.updated_at) || 0)) {
           state.meta = payload.new;
           saveLocalState(state);
@@ -596,7 +696,7 @@ export class DuoFinSync {
           this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
             this.subscribeRealtime();
-          }, 5000);
+          }, 3500);
         }
       }
     });
