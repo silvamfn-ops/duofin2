@@ -2881,8 +2881,22 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   };
   $('cloudLogout').onclick = () => sync.signOut();
   $('createHousehold').onclick = async () => {
+    const name = ($('householdName').value || '').trim() || 'Orçamento do casal';
+    if (sync.householdId) {
+      const msgAlready =
+        `ATENÇÃO: Este aparelho já está ligado ao orçamento (${sync.householdId.slice(0, 8)}…).\n\n` +
+        `Criar um novo orçamento ("${name}") vai desligar este aparelho do orçamento atual e criar uma sala separada na nuvem.\n\n` +
+        `Tens a certeza absoluta de que queres criar um SEGUNDO orçamento?`;
+      if (!confirm(msgAlready)) return;
+    } else {
+      const msgNew =
+        `Vais criar um NOVO orçamento partilhado ("${name}") do zero na nuvem.\n\n` +
+        `• Se já tens um orçamento criado noutro PC ou telemóvel, clica em CANCELAR e insere o código de convite de 6 caracteres no campo abaixo ("Associar").\n` +
+        `• Clica em OK apenas se este for o primeiro aparelho onde estás a criar o orçamento.`;
+      if (!confirm(msgNew)) return;
+    }
     try {
-      await sync.createHousehold($('householdName').value);
+      await sync.createHousehold(name);
       showToast('Orçamento do casal criado na nuvem!', { type: 'success' });
     } catch (err) {
       alert(err.message);
@@ -3418,7 +3432,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.6').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.7').then(reg => reg.update()).catch(() => {});
   }
 
   render();

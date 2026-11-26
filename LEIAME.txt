@@ -1,18 +1,18 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.6)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.7)
 
-1. NOVIDADE INCLUÍDA (Objetivos sem Montante-Alvo / Fundo Livre):
-- O campo «Montante-alvo (€)» na criação e edição de objetivos passou a ser opcional.
-- Se deixares o montante vazio (ou 0), o objetivo funciona como «Fundo livre» (ideal para Fundo de Emergência contínuo ou reserva sem teto fixo): mostra o saldo acumulado e todos os reforços/resgates sem barra de percentagem.
-- Compatível 100% com a tabela `savings_goals` existente no Supabase (sem necessidade de alterar a base de dados).
+1. NOVIDADE INCLUÍDA (Proteção contra Criação Acidental de Segundo Orçamento):
+- O botão «Criar orçamento partilhado» agora exige confirmação explícita antes de criar um novo orçamento na nuvem:
+  • Se o aparelho ainda não estiver ligado, alerta para usar «Associar» com o código de convite caso já exista um orçamento noutro PC/telemóvel.
+  • Se o aparelho já estiver ligado a um orçamento (ex.: e8379474…), exibe um aviso reforçado a informar que a criação vai desligá-lo do orçamento atual e criar uma sala isolada.
 
 2. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.8.6, campo montante-alvo opcional)
+- index.html                    -> Raiz do projeto (v2.8.7)
 - manifest.webmanifest          -> Raiz do projeto
-- sw.js                         -> Raiz do projeto (Cache PWA v2.8.6)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.8.7)
 - css/styles.css                -> Pasta css/
-- js/config.js                  -> Pasta js/ (Versão v2.8.6)
+- js/config.js                  -> Pasta js/ (Versão v2.8.7)
 - js/finance-engine.js          -> Pasta js/
 - js/supabase-sync.js           -> Pasta js/
-- js/app.js                     -> Pasta js/ (Suporte visual para objetivos sem montante-alvo / «Fundo livre»)
+- js/app.js                     -> Pasta js/ (Confirmação dupla ao criar orçamento partilhado)
 - icons/                        -> Pasta icons/
