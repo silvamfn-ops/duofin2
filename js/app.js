@@ -83,6 +83,87 @@ function mutate(table, record) {
   sync.flushOutbox();
 }
 
+
+let lastDevicesFetchAt = 0;
+async function renderLinkedDevicesPanel(force = false) {
+  const sec = $('linkedDevicesSection');
+  const membersEl = $('householdMembersList');
+  const devicesEl = $('householdDevicesList');
+  if (!sec || !membersEl || !devicesEl) return;
+
+  if (!sync || !sync.user || !sync.householdId) {
+    sec.hidden = true;
+    return;
+  }
+  sec.hidden = false;
+
+  if (!force && Date.now() - lastDevicesFetchAt < 8000 && devicesEl.dataset.loaded === '1') {
+    return;
+  }
+  lastDevicesFetchAt = Date.now();
+
+  const { members, devices, tableMissing } = await sync.fetchMembersAndDevices();
+  devicesEl.dataset.loaded = '1';
+
+  const roleLabel = r => (r === 'owner' || r === 'admin' ? 'Administrador' : 'Membro');
+  if (members.length) {
+    membersEl.innerHTML =
+      `<div class="small" style="font-weight:700;margin-bottom:4px">Contas com acesso (${members.length})</div>` +
+      members.map(m => {
+        const isMe = String(m.user_id) === String(sync.user?.id);
+        return `<div class="item row" style="padding:8px 10px">
+          <div><b>${esc(m.email)}</b>${isMe ? ' <span class="pill">Esta conta</span>' : ''}</div>
+          <span class="small">${esc(roleLabel(m.role))}</span>
+        </div>`;
+      }).join('');
+  } else {
+    membersEl.innerHTML = `<div class="item row" style="padding:8px 10px"><div><b>${esc(sync.user?.email || 'Utilizador')}</b> <span class="pill">Esta conta</span></div><span class="small">Ativo</span></div>`;
+  }
+
+  if (tableMissing) {
+    devicesEl.innerHTML = `<div class="alert" style="font-size:12.5px;margin:0">
+      Para listar todos os PCs e telemóveis associados, executa uma vez o script <code>supabase_v288_devices.sql</code> no <b>SQL Editor</b> do Supabase.<br>
+      <span class="small">Aparelho atual: <b>${esc(sync.getDeviceName())}</b></span>
+    </div>`;
+    return;
+  }
+
+  const currentDevId = sync.getDeviceId();
+  const fmtAgo = ts => {
+    const diffSec = Math.max(0, Math.floor((Date.now() - (Number(ts) || 0)) / 1000));
+    if (diffSec < 60) return 'Agora mesmo';
+    if (diffSec < 3600) return `Há ${Math.floor(diffSec / 60)} min`;
+    if (diffSec < 86400) return `Há ${Math.floor(diffSec / 3600)} h`;
+    return `Há ${Math.floor(diffSec / 86400)} dia(s)`;
+  };
+
+  if (!devices.length) {
+    devicesEl.innerHTML = '<div class="empty">Ainda sem dispositivos registados. Toca em «Atualizar lista».</div>';
+    return;
+  }
+
+  devicesEl.innerHTML =
+    `<div class="small" style="font-weight:700;margin-bottom:4px">Dispositivos ligados (${devices.length})</div>` +
+    devices.map(d => {
+      const isThis = String(d.device_id) === String(currentDevId);
+      const devIcon = /iPhone|iPad|Android/i.test(d.platform || d.device_name || '') ? '📱' : '💻';
+      return `<div class="item row" style="padding:8px 10px;gap:8px;align-items:center">
+        <div style="min-width:0;flex:1 1 auto">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span>${devIcon}</span>
+            <b>${esc(d.device_name || 'Dispositivo')}</b>
+            ${isThis ? '<span class="pill">Este aparelho</span>' : ''}
+            ${d.app_version ? `<span class="small" style="opacity:.8">(${esc(d.app_version)})</span>` : ''}
+          </div>
+          <div class="small" style="margin-top:2px">${esc(d.user_email || '')} · Visto: ${fmtAgo(d.last_seen_at)}</div>
+        </div>
+        <div class="row" style="gap:4px;flex:0 0 auto">
+          ${isThis ? `<button type="button" class="ghost" style="padding:4px 8px;font-size:12px" data-rename-this-device="1" title="Dar um nome personalizado a este aparelho">✎ Nome</button>` : `<button type="button" class="danger" style="padding:4px 8px;font-size:12px" data-remove-device="${esc(d.device_id)}" title="Remover registo deste dispositivo">×</button>`}
+        </div>
+      </div>`;
+    }).join('');
+}
+
 function updateHouseholdPanels() {
   if ($('cloudLogout')) $('cloudLogout').hidden = !sync.user;
   if ($('householdPanel')) $('householdPanel').hidden = !sync.user;
@@ -95,6 +176,7 @@ function updateHouseholdPanels() {
   if ($('clearOutboxBtn')) {
     $('clearOutboxBtn').hidden = outboxLen === 0;
   }
+  renderLinkedDevicesPanel(false);
   if ($('outboxDiagnosticBox')) {
     if (outboxLen > 0 && sync.lastOutboxErrors && sync.lastOutboxErrors.length) {
       const sample = sync.lastOutboxErrors
@@ -2880,6 +2962,39 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
     }
   };
   $('cloudLogout').onclick = () => sync.signOut();
+  if ($('refreshDevicesBtn')) {
+    $('refreshDevicesBtn').onclick = async () => {
+      await sync.registerCurrentDevice();
+      await renderLinkedDevicesPanel(true);
+      showToast('Lista de dispositivos atualizada.', { type: 'success' });
+    };
+  }
+  document.addEventListener('click', async e => {
+    const renBtn = e.target.closest('[data-rename-this-device]');
+    if (renBtn) {
+      const next = prompt('Nome para identificar este dispositivo (ex.: PC Sala, iPhone, Android):', sync.getDeviceName());
+      if (next && next.trim()) {
+        await sync.renameCurrentDevice(next);
+        await renderLinkedDevicesPanel(true);
+        showToast('Nome do dispositivo atualizado.', { type: 'success' });
+      }
+      return;
+    }
+    const remBtn = e.target.closest('[data-remove-device]');
+    if (remBtn) {
+      const devId = remBtn.dataset.removeDevice;
+      if (devId && confirm('Remover este dispositivo da lista de aparelhos registados?')) {
+        try {
+          await sync.removeDevice(devId);
+          await renderLinkedDevicesPanel(true);
+          showToast('Registo do dispositivo removido.', { type: 'info' });
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+    }
+  });
+
   $('createHousehold').onclick = async () => {
     const name = ($('householdName').value || '').trim() || 'Orçamento do casal';
     if (sync.householdId) {
@@ -2920,8 +3035,10 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
     }
   };
   $('syncNow').onclick = async () => {
+    await sync.registerCurrentDevice();
     await sync.flushOutbox();
     await sync.fullPull();
+    await renderLinkedDevicesPanel(true);
     const rem = getOutbox().length;
     if (rem > 0) {
       showToast(`Ainda existem ${rem} alteração(ões) pendentes na fila.`, { type: 'info' });
@@ -3432,7 +3549,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.7').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.8.8').then(reg => reg.update()).catch(() => {});
   }
 
   render();

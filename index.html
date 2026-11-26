@@ -15,7 +15,7 @@
   <link rel="apple-touch-startup-image" href="./icons/splash-ios.png?v=2.7.7">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css?v=2.8.2">
-  <title>DuoFin 2 v2.8.7 — Gestão financeira a dois</title>
+  <title>DuoFin 2 v2.8.8 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Arranque (Splash Screen) -->
@@ -716,6 +716,16 @@
             <button type="button" class="secondary" id="pushAllLocalBtn" title="Envia todos os movimentos, cartões e categorias deste dispositivo para a nuvem">☁️ Enviar dados deste dispositivo</button>
             <button type="button" class="ghost" id="clearOutboxBtn" hidden title="Remove itens antigos presos na fila de sincronização">🧹 Limpar fila presa</button>
           </div>
+
+          <div id="linkedDevicesSection" hidden style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+            <div class="row" style="margin-bottom:8px;gap:8px">
+              <strong style="font-size:14px">👥 Utilizadores &amp; Dispositivos Associados</strong>
+              <button type="button" class="ghost" id="refreshDevicesBtn" style="padding:4px 9px;font-size:12px">↻ Atualizar lista</button>
+            </div>
+            <p class="small" style="margin:0 0 8px">Confirma aqui que todos os teus telemóveis e PCs estão ligados a este mesmo orçamento.</p>
+            <div id="householdMembersList" class="list" style="margin-bottom:10px"></div>
+            <div id="householdDevicesList" class="list"></div>
+          </div>
         </div>
       </div>
 
@@ -1247,7 +1257,7 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.8.7 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.8.8 · Gestão financeira a dois</footer>
     </div>
   </div>
   <script type="module" src="./js/app.js?v=2.8.2"></script>

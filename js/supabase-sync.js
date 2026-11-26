@@ -1,7 +1,38 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getOutbox, clearOutboxItems, saveLocalState, enqueueOutbox } from './db.js';
+import { APP_VERSION } from './config.js';
 
 const CFG_KEY = 'duofin2-sb-config-v1';
+const DEVICE_ID_KEY = 'duofin2-device-id-v1';
+const DEVICE_NAME_KEY = 'duofin2-device-name-v1';
+
+function detectDefaultDeviceInfo() {
+  const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+  const isStandalone = typeof window !== 'undefined' && (
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true
+  );
+  let os = 'Computador';
+  if (/iPhone/i.test(ua)) os = 'iPhone';
+  else if (/iPad/i.test(ua)) os = 'iPad';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/Windows/i.test(ua)) os = 'PC Windows';
+  else if (/Macintosh|Mac OS X/i.test(ua)) os = 'Mac';
+  else if (/Linux/i.test(ua)) os = 'PC Linux';
+
+  let browser = '';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser = 'Chrome';
+  else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = 'Safari';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+
+  const modeLabel = isStandalone ? 'App instalada' : (browser || 'Navegador');
+  return {
+    name: `${os} (${modeLabel})`,
+    platform: `${os} · ${modeLabel}`
+  };
+}
+
 
 const TABLE_COLUMNS = {
   households: ['id', 'name', 'income_ref', 'cycle_grouping_days', 'adult1_name', 'adult2_name', 'auto_adjust_budgets', 'updated_at'],
@@ -105,6 +136,111 @@ export class DuoFinSync {
         this.bc.postMessage({ type: 'local_mutation', householdId: this.householdId, table, at: Date.now() });
       } catch {}
     }
+  }
+
+
+  getDeviceId() {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  }
+
+  getDeviceName() {
+    const saved = (localStorage.getItem(DEVICE_NAME_KEY) || '').trim();
+    if (saved) return saved;
+    const auto = detectDefaultDeviceInfo().name;
+    localStorage.setItem(DEVICE_NAME_KEY, auto);
+    return auto;
+  }
+
+  async renameCurrentDevice(newName) {
+    const clean = String(newName || '').trim().slice(0, 60);
+    if (!clean) return;
+    localStorage.setItem(DEVICE_NAME_KEY, clean);
+    await this.registerCurrentDevice();
+  }
+
+  async registerCurrentDevice() {
+    if (!this.supabase || !this.householdId || !this.user || !navigator.onLine) return;
+    try {
+      const info = detectDefaultDeviceInfo();
+      const payload = {
+        device_id: this.getDeviceId(),
+        household_id: this.householdId,
+        user_id: this.user.id,
+        user_email: this.user.email || '',
+        device_name: this.getDeviceName(),
+        platform: info.platform,
+        app_version: APP_VERSION,
+        last_seen_at: Date.now()
+      };
+      await this.supabase
+        .from('household_devices')
+        .upsert(payload, { onConflict: 'household_id,device_id' });
+    } catch (_) {}
+  }
+
+  async removeDevice(deviceId) {
+    if (!this.supabase || !this.householdId || !deviceId) return;
+    const { error } = await this.supabase
+      .from('household_devices')
+      .delete()
+      .eq('household_id', this.householdId)
+      .eq('device_id', deviceId);
+    if (error) throw error;
+  }
+
+  async fetchMembersAndDevices() {
+    if (!this.supabase || !this.householdId) {
+      return { members: [], devices: [], tableMissing: false };
+    }
+    let members = [];
+    let devices = [];
+    let tableMissing = false;
+
+    try {
+      const { data: rpcData, error: rpcErr } = await this.supabase.rpc('get_household_members_info', {
+        p_household: this.householdId
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        members = rpcData;
+      } else {
+        const { data: hmData } = await this.supabase
+          .from('household_members')
+          .select('user_id, role, created_at')
+          .eq('household_id', this.householdId);
+        if (Array.isArray(hmData)) {
+          members = hmData.map(m => ({
+            user_id: m.user_id,
+            email: m.user_id === this.user?.id ? (this.user.email || m.user_id) : `Membro (${String(m.user_id).slice(0, 8)}…)`,
+            role: m.role || 'member',
+            joined_at: m.created_at
+          }));
+        }
+      }
+    } catch (_) {}
+
+    try {
+      const { data: devData, error: devErr } = await this.supabase
+        .from('household_devices')
+        .select('*')
+        .eq('household_id', this.householdId)
+        .order('last_seen_at', { ascending: false });
+      if (devErr) {
+        if (/does not exist|relation|42P01|schema cache/i.test(devErr.message || '')) {
+          tableMissing = true;
+        }
+      } else if (Array.isArray(devData)) {
+        devices = devData;
+      }
+    } catch (_) {
+      tableMissing = true;
+    }
+
+    return { members, devices, tableMissing };
   }
 
   clearAllOutbox() {
@@ -234,6 +370,7 @@ export class DuoFinSync {
       }
     }
 
+    await this.registerCurrentDevice();
     await this.flushOutbox();
     await this.fullPull({ force: true });
     this.subscribeRealtime();

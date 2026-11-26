@@ -1,18 +1,18 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.7)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.8)
 
-1. NOVIDADE INCLUÍDA (Proteção contra Criação Acidental de Segundo Orçamento):
-- O botão «Criar orçamento partilhado» agora exige confirmação explícita antes de criar um novo orçamento na nuvem:
-  • Se o aparelho ainda não estiver ligado, alerta para usar «Associar» com o código de convite caso já exista um orçamento noutro PC/telemóvel.
-  • Se o aparelho já estiver ligado a um orçamento (ex.: e8379474…), exibe um aviso reforçado a informar que a criação vai desligá-lo do orçamento atual e criar uma sala isolada.
+1. ATIVAR TABELA DE DISPOSITIVOS NO SUPABASE (PASSO ÚNICO):
+- Abre o painel do teu projeto no Supabase -> SQL Editor -> New query.
+- Cola o conteúdo do ficheiro `supabase_v288_devices.sql` incluído neste ZIP e clica em Run.
+- Isto cria a tabela `household_devices` e a função segura `get_household_members_info` para listar todos os utilizadores e aparelhos ligados ao orçamento.
 
 2. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.8.7)
+- index.html                    -> Raiz do projeto (v2.8.8, secção Utilizadores & Dispositivos Associados em Dados)
 - manifest.webmanifest          -> Raiz do projeto
-- sw.js                         -> Raiz do projeto (Cache PWA v2.8.7)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.8.8)
 - css/styles.css                -> Pasta css/
-- js/config.js                  -> Pasta js/ (Versão v2.8.7)
+- js/config.js                  -> Pasta js/ (Versão v2.8.8)
 - js/finance-engine.js          -> Pasta js/
-- js/supabase-sync.js           -> Pasta js/
-- js/app.js                     -> Pasta js/ (Confirmação dupla ao criar orçamento partilhado)
+- js/supabase-sync.js           -> Pasta js/ (Registo automático de dispositivo, nome editável e leitura de membros)
+- js/app.js                     -> Pasta js/ (Interface da lista de contas e dispositivos ligados)
 - icons/                        -> Pasta icons/
