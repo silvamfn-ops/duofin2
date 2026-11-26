@@ -15,7 +15,7 @@
   <link rel="apple-touch-startup-image" href="./icons/splash-ios.png?v=2.7.7">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://esm.sh; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://esm.sh; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <link rel="stylesheet" href="./css/styles.css?v=2.8.2">
-  <title>DuoFin 2 v2.8.8 — Gestão financeira a dois</title>
+  <title>DuoFin 2 v2.9.0 — Gestão financeira a dois</title>
 </head>
 <body>
   <!-- Ecrã de Arranque (Splash Screen) -->
@@ -401,6 +401,7 @@
 
     <!-- ================= CADERNO DE ENCARGOS ================= -->
     <section id="recorrentes" class="view">
+      <div id="memberEncargosNotice" class="alert" hidden>👤 <b>Perfil de Utilizador:</b> Podes consultar os encargos fixos e registar pagamentos. Criar ou editar serviços recorrentes está reservado ao <b>Administrador</b>.</div>
       <div class="card">
         <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div>
@@ -471,6 +472,7 @@
 
     <!-- ================= ORÇAMENTO & COPILOTO ================= -->
     <section id="orcamento" class="view">
+      <div id="memberOrcamentoNotice" class="alert" hidden>👤 <b>Perfil de Utilizador:</b> Podes consultar os limites por categoria e usar o simulador. A criação/edição de categorias, tetos orçamentais, cartões e regras está reservada ao <b>Administrador</b>.</div>
       <!-- SIMULADOR DE IMPACTO ("E SE...?") -->
       <div class="card simulator-card" id="impactSimulatorCard">
         <div class="row" style="flex-wrap:wrap;gap:8px">
@@ -697,19 +699,45 @@
         </div>
         <div id="householdPanel" hidden>
           <hr>
-          <p id="householdInfo" class="small"></p>
+          <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:6px">
+            <p id="householdInfo" class="small" style="margin:0"></p>
+            <span class="pill" id="userRoleBadge">👑 Administrador</span>
+          </div>
           <div id="outboxDiagnosticBox" class="alert red" hidden style="margin:8px 0;font-size:12.5px"></div>
-          <div class="grid">
+
+          <div id="createHouseholdBox" class="grid">
             <div><label for="householdName">Nome do orçamento partilhado</label><input id="householdName" value="Orçamento do casal"></div>
             <div style="display:flex;align-items:end"><button type="button" class="secondary" id="createHousehold">Criar orçamento partilhado</button></div>
           </div>
-          <div class="grid">
-            <div><label for="inviteCode">Código de convite recebido</label><input id="inviteCode" autocomplete="off" placeholder="Ex.: A1B2C3"></div>
-            <div style="display:flex;align-items:end;gap:8px;flex-wrap:wrap">
-              <button type="button" class="secondary" id="joinHousehold">Associar</button>
-              <button type="button" class="secondary" id="createInvite">Gerar convite</button>
+
+          <div id="adminInviteBox" hidden style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2, rgba(127,127,127,0.05))">
+            <strong style="font-size:13.5px;display:block;margin-bottom:4px">✉️ Convidar Utilizador ou Administrador</strong>
+            <p class="small" style="margin:0 0 8px">Indica o email da conta a convidar e o perfil de acesso. Quando essa pessoa iniciar sessão com esse email, entra automaticamente neste orçamento.</p>
+            <div class="grid">
+              <div>
+                <label for="inviteTargetEmail" style="margin-top:0">Email do convidado</label>
+                <input id="inviteTargetEmail" type="email" autocomplete="off" placeholder="Ex.: parceiro@email.com">
+              </div>
+              <div>
+                <label for="inviteTargetRole" style="margin-top:0">Perfil de acesso</label>
+                <select id="inviteTargetRole">
+                  <option value="member" selected>👤 Utilizador (inserir e consultar movimentos)</option>
+                  <option value="admin">👑 Administrador (gestão total do orçamento)</option>
+                </select>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:8px">
+              <button type="button" class="secondary" id="createInvite">Gerar convite para este email</button>
             </div>
           </div>
+
+          <div id="joinHouseholdBox" class="grid" style="margin-top:8px">
+            <div><label for="inviteCode">Código de convite recebido (opcional se convidado por email)</label><input id="inviteCode" autocomplete="off" placeholder="Ex.: A1B2C3"></div>
+            <div style="display:flex;align-items:end;gap:8px;flex-wrap:wrap">
+              <button type="button" class="secondary" id="joinHousehold">Associar por código</button>
+            </div>
+          </div>
+
           <div id="inviteResult" class="alert good" hidden></div>
           <div class="actions" style="flex-wrap:wrap;gap:8px">
             <button type="button" class="primary" id="syncNow">↻ Sincronizar agora</button>
@@ -1257,7 +1285,7 @@
       </div>
     </div>
 
-    <footer>DuoFin 2 · v2.8.8 · Gestão financeira a dois</footer>
+    <footer>DuoFin 2 · v2.9.0 · Gestão financeira a dois</footer>
     </div>
   </div>
   <script type="module" src="./js/app.js?v=2.8.2"></script>

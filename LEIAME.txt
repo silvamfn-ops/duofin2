@@ -1,18 +1,21 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.8.8)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.9.0 — Perfis de Administrador e Utilizador + Convites por Email)
 
-1. ATIVAR TABELA DE DISPOSITIVOS NO SUPABASE (PASSO ÚNICO):
+1. EXECUTAR O SCRIPT DE PERFIS E SEGURANÇA NO SUPABASE (PASSO ÚNICO):
 - Abre o painel do teu projeto no Supabase -> SQL Editor -> New query.
-- Cola o conteúdo do ficheiro `supabase_v288_devices.sql` incluído neste ZIP e clica em Run.
-- Isto cria a tabela `household_devices` e a função segura `get_household_members_info` para listar todos os utilizadores e aparelhos ligados ao orçamento.
+- Cola o conteúdo do ficheiro `supabase_v290_roles_and_email_invites.sql` incluído neste ZIP e clica em Run.
+- Isto ativa:
+  • Perfis `Administrador` (gestão total) e `Utilizador` (consultar e inserir movimentos/poupanças);
+  • Convites direcionados por email com perfil escolhido (`create_invite_v3`) e associação automática ao iniciar sessão (`claim_pending_email_invites`);
+  • Políticas RLS na base de dados para impedir que contas de Utilizador alterem categorias, limites, cartões ou encargos fixos.
 
 2. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.8.8, secção Utilizadores & Dispositivos Associados em Dados)
+- index.html                    -> Raiz do projeto (v2.9.0, convite por email e seletor de perfil)
 - manifest.webmanifest          -> Raiz do projeto
-- sw.js                         -> Raiz do projeto (Cache PWA v2.8.8)
+- sw.js                         -> Raiz do projeto (Cache PWA v2.9.0)
 - css/styles.css                -> Pasta css/
-- js/config.js                  -> Pasta js/ (Versão v2.8.8)
+- js/config.js                  -> Pasta js/ (Versão v2.9.0)
 - js/finance-engine.js          -> Pasta js/
-- js/supabase-sync.js           -> Pasta js/ (Registo automático de dispositivo, nome editável e leitura de membros)
-- js/app.js                     -> Pasta js/ (Interface da lista de contas e dispositivos ligados)
+- js/supabase-sync.js           -> Pasta js/ (Gestão de perfis, convites por email e proteção da fila)
+- js/app.js                     -> Pasta js/ (Permissões de interface por perfil e gestão de membros)
 - icons/                        -> Pasta icons/

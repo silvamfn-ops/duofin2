@@ -74,7 +74,83 @@ const sync = new DuoFinSync(
   }
 );
 
+
+const ADMIN_ONLY_TABLES = new Set(['households', 'household_meta', 'categories', 'credit_cards', 'recurring_expenses']);
+
+function isCurrentUserAdmin() {
+  return !sync || typeof sync.isAdmin !== 'function' ? true : sync.isAdmin();
+}
+
+function applyRolePermissions() {
+  const isAdmin = isCurrentUserAdmin();
+  const isLinked = Boolean(sync && sync.user && sync.householdId);
+
+  if ($('userRoleBadge')) {
+    $('userRoleBadge').hidden = !isLinked;
+    $('userRoleBadge').textContent = isAdmin ? '👑 Administrador' : '👤 Utilizador';
+  }
+  if ($('createHouseholdBox')) {
+    $('createHouseholdBox').hidden = isLinked;
+  }
+  if ($('adminInviteBox')) {
+    $('adminInviteBox').hidden = !(isLinked && isAdmin);
+  }
+  if ($('joinHouseholdBox')) {
+    $('joinHouseholdBox').hidden = isLinked && !isAdmin;
+  }
+  if ($('pushAllLocalBtn')) {
+    $('pushAllLocalBtn').hidden = !isAdmin;
+  }
+  if ($('memberOrcamentoNotice')) {
+    $('memberOrcamentoNotice').hidden = isAdmin;
+  }
+  if ($('memberEncargosNotice')) {
+    $('memberEncargosNotice').hidden = isAdmin;
+  }
+
+  // Bloquear formulários estruturais na interface para o perfil Utilizador
+  const adminForms = ['newCategoryForm', 'addCategoryRuleForm', 'creditCardForm'];
+  adminForms.forEach(fid => {
+    const el = $(fid);
+    if (el) el.hidden = !isAdmin;
+  });
+
+  if ($('budgetForm')) {
+    const submitBtn = $('budgetForm').querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.hidden = !isAdmin;
+    $('budgetForm').querySelectorAll('input, button[data-move-cat], button[data-del-cat]').forEach(ctrl => {
+      ctrl.disabled = !isAdmin;
+      if (!isAdmin && ctrl.tagName === 'BUTTON') ctrl.hidden = true;
+    });
+  }
+
+  if ($('savePeople')) {
+    $('savePeople').hidden = !isAdmin;
+    ['adult1', 'adult2', 'cycleGroupingDays'].forEach(id => {
+      if ($(id)) $(id).disabled = !isAdmin;
+    });
+  }
+
+  if ($('openNewEncargoBtn')) $('openNewEncargoBtn').hidden = !isAdmin;
+  if ($('encargoSwitchEditBtn')) $('encargoSwitchEditBtn').hidden = !isAdmin;
+  if ($('encargoDeleteBtn')) $('encargoDeleteBtn').hidden = !isAdmin;
+
+  // Proteger importação de backup JSON completo e reinicialização da BD contra alterações por Utilizadores
+  const resetBtn = $('resetDatabaseBtn');
+  if (resetBtn && resetBtn.closest('.card')) {
+    resetBtn.closest('.card').hidden = !isAdmin;
+  }
+  const importInput = $('importLegacyBackup');
+  if (importInput && importInput.closest('label')) {
+    importInput.closest('label').hidden = !isAdmin;
+  }
+}
+
 function mutate(table, record) {
+  if (ADMIN_ONLY_TABLES.has(table) && !isCurrentUserAdmin()) {
+    showToast('Apenas o Administrador pode alterar esta configuração.', { type: 'info' });
+    return;
+  }
   record.updated_at = sync ? sync.nextMonotonicTimestamp() : Date.now();
   saveLocalState(state);
   enqueueOutbox(table, record);
@@ -105,15 +181,26 @@ async function renderLinkedDevicesPanel(force = false) {
   const { members, devices, tableMissing } = await sync.fetchMembersAndDevices();
   devicesEl.dataset.loaded = '1';
 
-  const roleLabel = r => (r === 'owner' || r === 'admin' ? 'Administrador' : 'Membro');
+  const roleLabel = r => (r === 'owner' || r === 'admin' ? '👑 Administrador' : '👤 Utilizador');
+  const amIAdmin = isCurrentUserAdmin();
   if (members.length) {
     membersEl.innerHTML =
       `<div class="small" style="font-weight:700;margin-bottom:4px">Contas com acesso (${members.length})</div>` +
       members.map(m => {
         const isMe = String(m.user_id) === String(sync.user?.id);
-        return `<div class="item row" style="padding:8px 10px">
+        const normR = m.role === 'owner' || m.role === 'admin' ? 'admin' : 'member';
+        const nextR = normR === 'admin' ? 'member' : 'admin';
+        const nextRLabel = nextR === 'admin' ? 'Promover a Admin' : 'Passar a Utilizador';
+        const adminControls = amIAdmin && !isMe
+          ? `<button type="button" class="ghost" style="padding:3px 7px;font-size:11.5px" data-toggle-member-role="${esc(m.user_id)}" data-next-role="${nextR}" title="Alterar perfil deste utilizador">${nextRLabel}</button>` +
+            `<button type="button" class="danger" style="padding:3px 7px;font-size:11.5px" data-remove-member="${esc(m.user_id)}" title="Remover acesso deste utilizador">×</button>`
+          : '';
+        return `<div class="item row" style="padding:8px 10px;gap:8px;flex-wrap:wrap">
           <div><b>${esc(m.email)}</b>${isMe ? ' <span class="pill">Esta conta</span>' : ''}</div>
-          <span class="small">${esc(roleLabel(m.role))}</span>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <span class="small">${esc(roleLabel(m.role))}</span>
+            ${adminControls}
+          </div>
         </div>`;
       }).join('');
   } else {
@@ -176,6 +263,7 @@ function updateHouseholdPanels() {
   if ($('clearOutboxBtn')) {
     $('clearOutboxBtn').hidden = outboxLen === 0;
   }
+  applyRolePermissions();
   renderLinkedDevicesPanel(false);
   if ($('outboxDiagnosticBox')) {
     if (outboxLen > 0 && sync.lastOutboxErrors && sync.lastOutboxErrors.length) {
@@ -2980,6 +3068,39 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
       }
       return;
     }
+
+    const toggleRoleBtn = e.target.closest('[data-toggle-member-role]');
+    if (toggleRoleBtn) {
+      const uidTarget = toggleRoleBtn.dataset.toggleMemberRole;
+      const nextRole = toggleRoleBtn.dataset.nextRole;
+      const label = nextRole === 'admin' ? 'Administrador' : 'Utilizador';
+      if (uidTarget && confirm(`Alterar o perfil desta conta para ${label}?`)) {
+        try {
+          await sync.updateMemberRole(uidTarget, nextRole);
+          await renderLinkedDevicesPanel(true);
+          applyRolePermissions();
+          showToast(`Perfil atualizado para ${label}.`, { type: 'success' });
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+      return;
+    }
+    const remMemberBtn = e.target.closest('[data-remove-member]');
+    if (remMemberBtn) {
+      const uidTarget = remMemberBtn.dataset.removeMember;
+      if (uidTarget && confirm('Revogar o acesso desta conta ao orçamento partilhado?')) {
+        try {
+          await sync.removeMember(uidTarget);
+          await renderLinkedDevicesPanel(true);
+          showToast('Acesso revogado com sucesso.', { type: 'info' });
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+      return;
+    }
+
     const remBtn = e.target.closest('[data-remove-device]');
     if (remBtn) {
       const devId = remBtn.dataset.removeDevice;
@@ -3018,10 +3139,26 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
     }
   };
   $('createInvite').onclick = async () => {
+    if (!isCurrentUserAdmin()) {
+      alert('Apenas um Administrador pode gerar convites.');
+      return;
+    }
+    const targetEmail = ($('inviteTargetEmail')?.value || '').trim().toLowerCase();
+    const targetRole = $('inviteTargetRole')?.value || 'member';
+    if (!targetEmail || !targetEmail.includes('@')) {
+      alert('Introduz o endereço de email válido do utilizador que queres convidar.');
+      if ($('inviteTargetEmail')) $('inviteTargetEmail').focus();
+      return;
+    }
     try {
-      const code = await sync.createInvite();
+      const code = await sync.createInvite(targetEmail, targetRole);
+      const roleTxt = targetRole === 'admin' ? 'Administrador' : 'Utilizador';
       $('inviteResult').hidden = false;
-      $('inviteResult').textContent = `Código de convite (7 dias): ${code}`;
+      $('inviteResult').innerHTML =
+        `Convite criado para <b>${esc(targetEmail)}</b> como <b>${roleTxt}</b>.<br>` +
+        `Código alternativo (7 dias): <b>${esc(code)}</b> — Basta a pessoa iniciar sessão com esse email para entrar automaticamente.`;
+      if ($('inviteTargetEmail')) $('inviteTargetEmail').value = '';
+      showToast(`Convite (${roleTxt}) gerado para ${targetEmail}!`, { type: 'success' });
     } catch (err) {
       alert(err.message);
     }
@@ -3549,7 +3686,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.8.8').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.9.0').then(reg => reg.update()).catch(() => {});
   }
 
   render();

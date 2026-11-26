@@ -5,6 +5,8 @@ import { APP_VERSION } from './config.js';
 const CFG_KEY = 'duofin2-sb-config-v1';
 const DEVICE_ID_KEY = 'duofin2-device-id-v1';
 const DEVICE_NAME_KEY = 'duofin2-device-name-v1';
+const ROLE_CACHE_KEY = 'duofin2-role-v1';
+const STRUCTURAL_TABLES = new Set(['households', 'household_meta', 'categories', 'credit_cards', 'recurring_expenses']);
 
 function detectDefaultDeviceInfo() {
   const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
@@ -88,6 +90,7 @@ export class DuoFinSync {
     this.supabase = null;
     this.householdId = null;
     this.user = null;
+    this.role = null;
     this.channel = null;
     this.channelHealthy = false;
     this.isFlushing = false;
@@ -138,6 +141,98 @@ export class DuoFinSync {
     }
   }
 
+
+
+  getCachedRole(hid = this.householdId) {
+    if (!hid) return null;
+    try {
+      const map = JSON.parse(localStorage.getItem(ROLE_CACHE_KEY) || '{}');
+      return map[hid] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  setCachedRole(hid, role) {
+    if (!hid || !role) return;
+    try {
+      const map = JSON.parse(localStorage.getItem(ROLE_CACHE_KEY) || '{}');
+      map[hid] = role;
+      localStorage.setItem(ROLE_CACHE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+
+  normalizeRole(rawRole) {
+    const r = String(rawRole || '').toLowerCase().trim();
+    if (r === 'owner' || r === 'admin') return 'admin';
+    if (r === 'member' || r === 'user') return 'member';
+    return 'admin';
+  }
+
+  isAdmin() {
+    if (!this.user || !this.householdId) return true;
+    const effective = this.role || this.getCachedRole(this.householdId) || 'admin';
+    return effective === 'admin';
+  }
+
+  async refreshCurrentRole() {
+    if (!this.supabase || !this.householdId || !this.user) return this.isAdmin();
+    try {
+      const { data, error } = await this.supabase
+        .from('household_members')
+        .select('role')
+        .eq('household_id', this.householdId)
+        .eq('user_id', this.user.id)
+        .maybeSingle();
+      if (!error && data) {
+        this.role = this.normalizeRole(data.role);
+        this.setCachedRole(this.householdId, this.role);
+      } else if (!error && !data) {
+        this.role = null;
+        this.householdId = null;
+        const cfg = this.getConfig();
+        this.saveConfig(cfg.url, cfg.anonKey, null);
+      }
+    } catch (_) {}
+    return this.isAdmin();
+  }
+
+  async claimPendingEmailInvites() {
+    if (!this.supabase || !this.user) return null;
+    try {
+      const { data, error } = await this.supabase.rpc('claim_pending_email_invites');
+      if (!error && data) {
+        this.householdId = data;
+        const cfg = this.getConfig();
+        this.saveConfig(cfg.url, cfg.anonKey, data);
+        await this.refreshCurrentRole();
+        return data;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async updateMemberRole(targetUserId, newRole) {
+    if (!this.supabase || !this.householdId) throw new Error('Sem ligação ao orçamento.');
+    const { error } = await this.supabase.rpc('update_household_member_role', {
+      p_household: this.householdId,
+      p_target_user: targetUserId,
+      p_new_role: newRole
+    });
+    if (error) throw error;
+    if (String(targetUserId) === String(this.user?.id)) {
+      await this.refreshCurrentRole();
+    }
+  }
+
+  async removeMember(targetUserId) {
+    if (!this.supabase || !this.householdId) throw new Error('Sem ligação ao orçamento.');
+    const { error } = await this.supabase.rpc('remove_household_member', {
+      p_household: this.householdId,
+      p_target_user: targetUserId
+    });
+    if (error) throw error;
+  }
 
   getDeviceId() {
     let id = localStorage.getItem(DEVICE_ID_KEY);
@@ -350,24 +445,36 @@ export class DuoFinSync {
     const session = await this.ensureValidSession();
     if (!session) {
       this.user = null;
+      this.role = null;
       this.stopHeartbeat();
       this.onStatusChange('logged_out', 'Configurado. Inicia sessão ou cria conta para sincronizar.');
       return;
     }
 
+    const claimedHid = await this.claimPendingEmailInvites();
+    if (claimedHid) {
+      this.householdId = claimedHid;
+    }
+
     if (!this.householdId) {
       const { data: members, error } = await this.supabase
         .from('household_members')
-        .select('household_id')
+        .select('household_id, role')
         .limit(1);
       if (!error && members && members.length) {
         this.householdId = members[0].household_id;
+        this.role = this.normalizeRole(members[0].role);
+        this.setCachedRole(this.householdId, this.role);
         const cfg = this.getConfig();
         this.saveConfig(cfg.url, cfg.anonKey, this.householdId);
       } else {
-        this.onStatusChange('no_household', `Sessão ativa (${this.user.email}). Cria ou associa o orçamento do casal.`);
+        this.role = null;
+        this.onStatusChange('no_household', `Sessão ativa (${this.user.email}). Cria um orçamento ou aguarda convite de um Administrador.`);
         return;
       }
+    } else {
+      this.role = this.getCachedRole(this.householdId);
+      await this.refreshCurrentRole();
     }
 
     await this.registerCurrentDevice();
@@ -422,6 +529,7 @@ export class DuoFinSync {
     this.channelHealthy = false;
     if (this.supabase) await this.supabase.auth.signOut();
     this.user = null;
+    this.role = null;
     this.householdId = null;
     const cfg = this.getConfig();
     this.saveConfig(cfg.url, cfg.anonKey, null);
@@ -433,6 +541,8 @@ export class DuoFinSync {
     const { data: hid, error } = await this.supabase.rpc('create_household_v2', { p_name: name });
     if (error) throw error;
     const cfg = this.getConfig();
+    this.role = 'admin';
+    this.setCachedRole(hid, 'admin');
     this.saveConfig(cfg.url, cfg.anonKey, hid);
     const st = this.getState();
     const hasLocalData = (st.transactions?.length || 0) > 0 || (st.credit_cards?.length || 0) > 0 || (st.savings_goals?.length || 0) > 0 || (st.recurring_expenses?.length || 0) > 0;
@@ -445,8 +555,20 @@ export class DuoFinSync {
     return hid;
   }
 
-  async createInvite() {
+  async createInvite(targetEmail = '', targetRole = 'member') {
     if (!this.supabase || !this.householdId) throw new Error('Associa primeiro um orçamento.');
+    if (!this.isAdmin()) throw new Error('Apenas um Administrador pode gerar convites.');
+    const cleanEmail = String(targetEmail || '').trim().toLowerCase() || null;
+    const cleanRole = targetRole === 'admin' ? 'admin' : 'member';
+    const { data: codeV3, error: errV3 } = await this.supabase.rpc('create_invite_v3', {
+      p_household: this.householdId,
+      p_email: cleanEmail,
+      p_role: cleanRole
+    });
+    if (!errV3 && codeV3) return codeV3;
+    if (errV3 && !/function .*create_invite_v3.* does not exist/i.test(errV3.message || '')) {
+      throw errV3;
+    }
     const { data: code, error } = await this.supabase.rpc('create_invite_v2', { p_household: this.householdId });
     if (error) throw error;
     return code;
@@ -458,6 +580,8 @@ export class DuoFinSync {
     if (error) throw error;
     const cfg = this.getConfig();
     this.saveConfig(cfg.url, cfg.anonKey, hid);
+    await this.refreshCurrentRole();
+    await this.registerCurrentDevice();
     await this.fullPull({ force: true });
     this.subscribeRealtime();
     this.startHeartbeat();
@@ -522,6 +646,13 @@ export class DuoFinSync {
       }
 
       for (const [table, items] of grouped.entries()) {
+        if (STRUCTURAL_TABLES.has(table) && !this.isAdmin()) {
+          for (const item of items) {
+            const pk = table === 'household_meta' || table === 'households' ? this.householdId : item.record.id;
+            processed.push(`${item.table}:${pk}:${item.queuedAt}`);
+          }
+          continue;
+        }
         const conflictCol = table === 'household_meta' ? 'household_id' : 'id';
         const dedupMap = new Map();
         for (const item of items) {
@@ -670,6 +801,7 @@ export class DuoFinSync {
         }
       }
 
+      await this.refreshCurrentRole();
       saveLocalState(state);
       this.lastSyncAt = Date.now();
       this.onRemoteUpdate();
