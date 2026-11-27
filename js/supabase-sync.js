@@ -560,18 +560,50 @@ export class DuoFinSync {
     if (!this.isAdmin()) throw new Error('Apenas um Administrador pode gerar convites.');
     const cleanEmail = String(targetEmail || '').trim().toLowerCase() || null;
     const cleanRole = targetRole === 'admin' ? 'admin' : 'member';
+    const appUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0].split('?')[0] : '';
+
+    // 1. Tentar enviar automaticamente via Edge Function `send-household-invite`
+    if (cleanEmail) {
+      try {
+        const { data: fnData, error: fnErr } = await this.supabase.functions.invoke('send-household-invite', {
+          body: {
+            householdId: this.householdId,
+            email: cleanEmail,
+            role: cleanRole,
+            appUrl
+          }
+        });
+        if (!fnErr && fnData && fnData.code) {
+          return {
+            code: fnData.code,
+            emailSent: Boolean(fnData.emailSent),
+            provider: fnData.provider || 'edge',
+            warning: fnData.warning || ''
+          };
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fallback para RPC SQL `create_invite_v3` (regista convite na BD sem envio SMTP)
     const { data: codeV3, error: errV3 } = await this.supabase.rpc('create_invite_v3', {
       p_household: this.householdId,
       p_email: cleanEmail,
       p_role: cleanRole
     });
-    if (!errV3 && codeV3) return codeV3;
+    if (!errV3 && codeV3) {
+      return {
+        code: codeV3,
+        emailSent: false,
+        provider: 'rpc_only',
+        warning: 'Edge Function send-household-invite ainda não publicada no Supabase (convite gravado na base de dados).'
+      };
+    }
     if (errV3 && !/function .*create_invite_v3.* does not exist/i.test(errV3.message || '')) {
       throw errV3;
     }
     const { data: code, error } = await this.supabase.rpc('create_invite_v2', { p_household: this.householdId });
     if (error) throw error;
-    return code;
+    return { code, emailSent: false, provider: 'rpc_v2', warning: '' };
   }
 
   async acceptInvite(code) {

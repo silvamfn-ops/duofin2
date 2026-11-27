@@ -1,21 +1,18 @@
-INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.9.0 — Perfis de Administrador e Utilizador + Convites por Email)
+INSTRUÇÕES DE ATUALIZAÇÃO (DuoFin 2 v2.9.1 — Envio Automático de Emails de Convite via Edge Function)
 
-1. EXECUTAR O SCRIPT DE PERFIS E SEGURANÇA NO SUPABASE (PASSO ÚNICO):
-- Abre o painel do teu projeto no Supabase -> SQL Editor -> New query.
-- Cola o conteúdo do ficheiro `supabase_v290_roles_and_email_invites.sql` incluído neste ZIP e clica em Run.
-- Isto ativa:
-  • Perfis `Administrador` (gestão total) e `Utilizador` (consultar e inserir movimentos/poupanças);
-  • Convites direcionados por email com perfil escolhido (`create_invite_v3`) e associação automática ao iniciar sessão (`claim_pending_email_invites`);
-  • Políticas RLS na base de dados para impedir que contas de Utilizador alterem categorias, limites, cartões ou encargos fixos.
+1. PUBLICAR A EDGE FUNCTION NO SUPABASE (`send-household-invite`):
+- No painel do Supabase -> Edge Functions -> Create a new function -> Nome exato: `send-household-invite`
+- Cola o conteúdo do ficheiro `supabase/functions/send-household-invite/index.ts` incluído neste ZIP e clica em Deploy.
+- Vai a Edge Functions -> Secrets (ou Project Settings -> Edge Functions) e adiciona:
+  • `RESEND_API_KEY`: a tua chave gratuita de resend.com (recomendado: envia emails tanto para contas novas como para utilizadores que já criaram conta no Supabase).
+  • `RESEND_FROM_EMAIL` (opcional): ex. `DuoFin 2 <onboarding@resend.dev>` ou o teu domínio verificado.
+  (Nota: Se não definires `RESEND_API_KEY`, a função tenta usar automaticamente o `supabase.auth.admin.inviteUserByEmail` nativo do Supabase.)
 
 2. SUBSTITUIÇÃO DOS FICHEIROS NO GITHUB / PROJETO:
 Extrai este ZIP diretamente para a pasta raiz do teu projeto DuoFin 2 (substituindo os ficheiros existentes):
-- index.html                    -> Raiz do projeto (v2.9.0, convite por email e seletor de perfil)
-- manifest.webmanifest          -> Raiz do projeto
-- sw.js                         -> Raiz do projeto (Cache PWA v2.9.0)
-- css/styles.css                -> Pasta css/
-- js/config.js                  -> Pasta js/ (Versão v2.9.0)
-- js/finance-engine.js          -> Pasta js/
-- js/supabase-sync.js           -> Pasta js/ (Gestão de perfis, convites por email e proteção da fila)
-- js/app.js                     -> Pasta js/ (Permissões de interface por perfil e gestão de membros)
-- icons/                        -> Pasta icons/
+- index.html                                           -> Raiz do projeto (v2.9.1)
+- sw.js                                                -> Raiz do projeto (Cache PWA v2.9.1)
+- js/config.js                                         -> Pasta js/ (Versão v2.9.1)
+- js/supabase-sync.js                                  -> Pasta js/ (Invocação automática da Edge Function `send-household-invite`)
+- js/app.js                                            -> Pasta js/ (Feedback visual de envio de email automático)
+- supabase/functions/send-household-invite/index.ts    -> Código completo da Edge Function para o Supabase

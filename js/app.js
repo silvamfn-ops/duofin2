@@ -3151,14 +3151,26 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
       return;
     }
     try {
-      const code = await sync.createInvite(targetEmail, targetRole);
+      const res = await sync.createInvite(targetEmail, targetRole);
+      const code = typeof res === 'string' ? res : res.code;
+      const emailSent = typeof res === 'object' && Boolean(res.emailSent);
+      const warning = typeof res === 'object' ? (res.warning || '') : '';
       const roleTxt = targetRole === 'admin' ? 'Administrador' : 'Utilizador';
       $('inviteResult').hidden = false;
-      $('inviteResult').innerHTML =
-        `Convite criado para <b>${esc(targetEmail)}</b> como <b>${roleTxt}</b>.<br>` +
-        `Código alternativo (7 dias): <b>${esc(code)}</b> — Basta a pessoa iniciar sessão com esse email para entrar automaticamente.`;
+      if (emailSent) {
+        $('inviteResult').className = 'alert good';
+        $('inviteResult').innerHTML =
+          `✅ <b>Email enviado automaticamente</b> para <b>${esc(targetEmail)}</b> (${roleTxt})!<br>` +
+          `Código alternativo (7 dias): <b>${esc(code)}</b>`;
+        showToast(`Email de convite enviado para ${targetEmail}!`, { type: 'success' });
+      } else {
+        $('inviteResult').className = 'alert';
+        $('inviteResult').innerHTML =
+          `Convite registado para <b>${esc(targetEmail)}</b> (${roleTxt}) · Código: <b>${esc(code)}</b>.<br>` +
+          `<span class="small">${esc(warning || 'A pessoa entra automaticamente ao iniciar sessão com esse email.')}</span>`;
+        showToast(`Convite registado para ${targetEmail}.`, { type: 'info' });
+      }
       if ($('inviteTargetEmail')) $('inviteTargetEmail').value = '';
-      showToast(`Convite (${roleTxt}) gerado para ${targetEmail}!`, { type: 'success' });
     } catch (err) {
       alert(err.message);
     }
@@ -3686,7 +3698,7 @@ Existem ${affectedTx.length} movimento(s), ${affectedRec.length} encargo(s) e ${
   updateInstallAppUi();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js?v=2.9.0').then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=2.9.1').then(reg => reg.update()).catch(() => {});
   }
 
   render();
